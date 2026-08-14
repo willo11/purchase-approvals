@@ -64,7 +64,7 @@ All under `/api/approvals/{requestId}/token/{token}`.
 ### host (shell)
 - Route `/` landing/menu → no API (static shell).
 
-### `solicitante` remote — routes `/solicitante`, `/solicitante/nueva`, `/solicitante/:id`
+### `requester` remote — routes `/requester`, `/requester/nueva`, `/requester/:id`
 | Screen / action | Endpoint |
 |---|---|
 | Load list | #4 GET /api/purchase-requests |
@@ -73,7 +73,7 @@ All under `/api/approvals/{requestId}/token/{token}`.
 | Load detail + approver table | #5 GET /api/purchase-requests/{id} |
 | Download PDF button (only if `status=COMPLETED`) | #6 GET /api/purchase-requests/{id}/evidence.pdf (blob download) |
 
-### `aprobador` remote — route `/approve?request_id=..&approver_token=..`
+### `approver` remote — route `/approve?request_id=..&approver_token=..`
 | Screen / action | Endpoint |
 |---|---|
 | Resolve link → gate (terminal? lockout? prompt for OTP?) | #7 POST .../otp (terminal 410 / lockout 403 / issues OTP) |

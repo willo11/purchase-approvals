@@ -8,7 +8,7 @@ context: |
   Tech stack: Monorepo of independent packages (no workspace tool). backend/ = Node.js 20 + TypeScript,
   Serverless Framework (Lambda + API Gateway + DynamoDB single-table + S3), Clean Architecture
   (domain/application/infrastructure/api); frontend/ = React 18 + axios + React Router v6 + webpack 5
-  Module Federation (host + solicitante + aprobador remotes); mobile/ = React Native study, deferred.
+  Module Federation (host + requester + approver remotes); mobile/ = React Native study, deferred.
   Testing: Jest + ts-jest (backend, node env) and Jest + jsdom + React Testing Library (each frontend
   app), coverage thresholds >=60% enforced in every jest config; integration tests run against
   dynamodb-local (docker compose) gated by the DYNAMODB_LOCAL env var.
@@ -30,7 +30,7 @@ rules:
   apply:
     - Follow existing code patterns
     tdd: false           # Test-first RED-GREEN-REFACTOR not enforced; coverage threshold IS enforced
-    test_command: "npm run test:ci"   # backend + host + solicitante + aprobador (root package.json)
+    test_command: "npm run test:ci"   # backend + host + requester + approver (root package.json)
   verify:
     test_command: "npm run test:ci"
     build_command: "npm run build:ci"

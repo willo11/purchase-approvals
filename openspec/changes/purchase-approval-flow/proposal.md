@@ -14,7 +14,7 @@ Deliver a serverless purchase-approval flow: employees register (name + email + 
 - Approver flow: unique UUID token per approver, simulated email (mock mail), OTP (6-digit, SHA-256, 3-min TTL, 3 attempts).
 - Signature: registered name + timestamp (from User snapshot, not typed at signing); PDF evidence (pdf-lib, 3 signature slots) on 3/3 signed; download endpoint `/api/purchase-requests/{id}/evidence.pdf`.
 - Mock mail: mail events table + `GET /mock-mail` for demo/QA.
-- Frontend: React 18, axios, React Router, webpack 5 Module Federation (host + `solicitante`, `aprobador` remotes).
+- Frontend: React 18, axios, React Router, webpack 5 Module Federation (host + `requester`, `approver` remotes).
 - Tests >=60% coverage (backend Jest + dynamodb-local; frontend Jest + RTL); README; Swagger/OpenAPI; deployment URLs.
 
 ### Out of Scope

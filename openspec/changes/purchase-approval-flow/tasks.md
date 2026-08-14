@@ -45,7 +45,7 @@ Total estimated: ~5,670 changed lines.
 - [x] 0.2 `backend/jest.config.ts`: `coverageThreshold` global 60 (spec R9/config); unit vs integration (`dynamodb-local`) project setups.
 - [x] 0.3 Clean-architecture folder skeleton: `backend/src/{domain,application,infrastructure,api,handlers}` empty entry + trivial `health` handler wired in `serverless.yml` (functions + DynamoDB table + GSI1 + TTL on `otpExpiresAt` + S3 bucket).
 - [x] 0.4 Integration harness: `docker-compose`/script launching `dynamodb-local`; `DYNAMODB_LOCAL` env guard (design: single table `PK`/`SK`/`GSI1`/`ttl`).
-- [x] 0.5 `frontend/` webpack-5 Module Federation scaffold: `host` + remotes `solicitante`, `aprobador`, each an empty page; `shared:{react:{singleton:true}}` + `React.lazy`/`Suspense` (frontend Decisions 1,3).
+- [x] 0.5 `frontend/` webpack-5 Module Federation scaffold: `host` + remotes `requester`, `approver`, each an empty page; `shared:{react:{singleton:true}}` + `React.lazy`/`Suspense` (frontend Decisions 1,3).
 - [x] 0.6 Root `README.md` skeleton, root `.gitignore`, CI test script (`test:ci` runs backend + each frontend remote).
 - [x] 0.7 Update `openspec/config.yaml`: set `apply.test_command`, `verify.test_command`, record Jest/dynamodb-local in `testing:` capabilities.
 
@@ -141,15 +141,15 @@ Verify: suite green, >=60%.
 
 ## PR #6 — requester-panel (frontend)
 
-> **Concept**: Micro-front-end split by bounded context, not by layer (Decisions 1). Host = shell + routing chassis that lazy-loads remotes. `solicitante` owns `/solicitante*`. State lives in the backend; apps never talk to each other — the APIs are the only contract (design-api mapping). Every axios call maps to endpoints #2/#3/#4/#5/#6.
+> **Concept**: Micro-front-end split by bounded context, not by layer (Decisions 1). Host = shell + routing chassis that lazy-loads remotes. `requester` owns `/requester*`. State lives in the backend; apps never talk to each other — the APIs are the only contract (design-api mapping). Every axios call maps to endpoints #2/#3/#4/#5/#6.
 
 - [ ] 6.1 Host shell: React.lazy+Suspense routes mounting remotes.
-- [ ] 6.2 `solicitante` list screen → `GET /api/purchase-requests`, empty-state (requester-panel R1), newest first.
+- [ ] 6.2 `requester` list screen → `GET /api/purchase-requests`, empty-state (requester-panel R1), newest first.
 - [ ] 6.3 Create form: requester + 3 approver selectors from `GET /api/users`, requester != approvers constraint, submit → `POST /api/purchase-requests`, surface validation errors, navigate to detail (R2).
 - [ ] 6.4 Detail screen: per-approver status table (PENDING/SIGNED/REJECTED) (R3); "Download PDF" button only when `COMPLETED` → blob `GET .../evidence.pdf` (R4).
 - [ ] 6.5 axios service + mappers (DTO → component shape); error surfaced without crash (R5).
 - [ ] 6.6 Jest+RTL: render list (2 requests + empty), create form user-list + validation error, detail table, PDF-button visibility (scenarios R1-R5) with mocked axios.
-- [ ] 6.7 Coverage >=60% in `solicitante` jest config; DECISIONS.md frontend entry.
+- [ ] 6.7 Coverage >=60% in `requester` jest config; DECISIONS.md frontend entry.
 
 Verify: remote suite green, build ok.
 
@@ -157,7 +157,7 @@ Verify: remote suite green, build ok.
 
 ## PR #7 — approver-flow (frontend)
 
-> **Concept**: `aprobador` remote owns `/approve`. Driver = the terminal gate: terminal state overrides everything. OTP entry, lockout, and regenerate are distinct UI states driven by HTTP codes (#7/#8/#9). Approve never asks for a name (registered snapshot), Reject requires confirm (approver-flow R1-R4). Calls map to #7-#11.
+> **Concept**: `approver` remote owns `/approve`. Driver = the terminal gate: terminal state overrides everything. OTP entry, lockout, and regenerate are distinct UI states driven by HTTP codes (#7/#8/#9). Approve never asks for a name (registered snapshot), Reject requires confirm (approver-flow R1-R4). Calls map to #7-#11.
 
 - [ ] 7.1 Link resolution screen: read `request_id` + `approver_token`; `POST .../otp` → terminal (410) / lockout (403) / OTP entry (R1).
 - [ ] 7.2 OTP entry: 6-digit input → `POST .../otp/validate`; wrong code shows `{attemptsRemaining}`; 3rd → lockout screen; expired → "generate new OTP" `POST .../otp/regenerate` (R2).

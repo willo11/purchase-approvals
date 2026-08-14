@@ -2,7 +2,7 @@
 
 ## Technical Approach
 
-Serverless backend (Node.js + TypeScript, Clean Architecture) over a single-table DynamoDB, plus a micro-frontend host with two remotes (`solicitante`, `aprobador`) via webpack 5 Module Federation. The flow is: register users → requester creates a request (3 approvers) → per-approver UUID token + OTP gate → each approver signs/rejects against registered-name snapshots → 3/3 approves atomically completes the request and triggers PDF evidence (pdf-lib → S3) → download endpoint. Terminal global states (`COMPLETED` > `REJECTED` > `PENDING`) dominate all gates. Capabilities map to 7 chained PRs; each is independently implementable/testable because modules sit in distinct application/handler modules with mocked ports at unit level and real adapters at integration level.
+Serverless backend (Node.js + TypeScript, Clean Architecture) over a single-table DynamoDB, plus a micro-frontend host with two remotes (`requester`, `approver`) via webpack 5 Module Federation. The flow is: register users → requester creates a request (3 approvers) → per-approver UUID token + OTP gate → each approver signs/rejects against registered-name snapshots → 3/3 approves atomically completes the request and triggers PDF evidence (pdf-lib → S3) → download endpoint. Terminal global states (`COMPLETED` > `REJECTED` > `PENDING`) dominate all gates. Capabilities map to 7 chained PRs; each is independently implementable/testable because modules sit in distinct application/handler modules with mocked ports at unit level and real adapters at integration level.
 
 Reference specs: `openspec/specs/{user-registry,purchase-request,approver-otp,approval-signature,pdf-evidence,requester-panel,approver-flow}/spec.md`. Decisions log conventions: `backend/DECISIONS.md`, `frontend/DECISIONS.md`.
 
@@ -58,7 +58,7 @@ Reference specs: `openspec/specs/{user-registry,purchase-request,approver-otp,ap
 
 ### Decision: Module Federation host/remote ownership
 
-**Choice**: Host owns shell + routing chassis; `solicitante` remote owns `/solicitante*` (list/create/detail/PDF); `aprobador` remote owns `/approve*` (token gate, OTP, decide). Host lazy-loads remotes through `React.lazy` + `Suspense`.
+**Choice**: Host owns shell + routing chassis; `requester` remote owns `/requester*` (list/create/detail/PDF); `approver` remote owns `/approve*` (token gate, OTP, decide). Host lazy-loads remotes through `React.lazy` + `Suspense`.
 
 **Alternatives considered**: host owning all routes and importing remote components; remote owning navigation — rejected (couples remotes to nav details, defeats independent deploy).
 
@@ -113,7 +113,7 @@ Every frontend screen maps to these (full table in `design-api.md`): requester l
 | `backend/src/api/*` | Create | Lambda handlers (one per function), DTOs, error→HTTP mapping |
 | `backend/serverless.yml` | Create | Single table + GSI1 + TTL, S3 bucket, all functions→routes |
 | `backend/tests/*` | Create | Jest unit + integration (dynamodb-local) |
-| `frontend/host/*`, `frontend/solicitante/*`, `frontend/aprobador/*` | Create | Module Federation apps |
+| `frontend/host/*`, `frontend/requester/*`, `frontend/approver/*` | Create | Module Federation apps |
 | `README.md`, `docs/*` | Create | Run/deploy, Swagger, auth disclaimer |
 
 ## Testing Strategy

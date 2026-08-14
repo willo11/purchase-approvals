@@ -118,7 +118,7 @@
 | **Repository (port)** | Abstracts data access: the use case talks to an interface, not to DynamoDB | `application/ports/UserRepository.ts` | "The use case depends on a contract (port), not on DynamoDB — the storage engine is swappable." |
 | **Adapter** | Translates the contract to the real external world; the only layer that knows `@aws-sdk` | `infrastructure/DynamoDbUserRepository.ts` | "The adapter is the translator: the domain speaks its own language, only the adapter speaks DynamoDB." |
 | **Ports & Adapters / Hexagonal** | The domain at the center (pure logic), the adapters outside for infrastructure | layering global (domain/application/infrastructure/api) | "The hexagon is the domain; I can swap the database without the core noticing." |
-| **Entity** | Object with its own identity, identified by its email | `domain/User.ts` | User is identified by identity (its email), not by its attributes." |
+| **Entity** | Object with its own identity, identified by its email | `domain/User.ts` | "A User is identified by its identity (its email), not by its attributes." |
 | **Value Object** | Immutable object that validates itself and compares by value; normalizes `ANA@` → `ana@` | `domain/values/Email.ts` | "Email is a value object: it carries its own validation and normalization, so an invalid format can't exist." |
 | **Application Service / Use Case** | Orchestrates ONE business task without knowing "how" | `application/RegisterUser.ts` | "The use case holds the business rule (duplicate→409) and ignores the technology (DynamoDB)." |
 | **Factory (composition root)** | Builds the adapter and its dependencies | `makeUserRepository()` | "makeUserRepository is the composition root — the only place that wires the adapter from the environment." |

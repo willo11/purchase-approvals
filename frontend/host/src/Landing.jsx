@@ -7,7 +7,7 @@ export default function Landing() {
       <nav>
         <ul>
           <li>
-            <Link to="/solicitante">Requester</Link>
+            <Link to="/requester">Requester</Link>
           </li>
           <li>
             <Link to="/approve">Approver</Link>

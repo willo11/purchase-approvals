@@ -1,8 +1,8 @@
 {
-  "name": "@purchase-approvals/solicitante",
+  "name": "@purchase-approvals/requester",
   "version": "0.0.0",
   "private": true,
-  "description": "Module Federation remote: requester world (list, create, detail, PDF) — owned by /solicitante*",
+  "description": "Module Federation remote: requester world (list, create, detail, PDF) — owned by /requester*",
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack --mode production",

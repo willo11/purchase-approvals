@@ -2,12 +2,12 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import Landing from './Landing';
 
-const SolicitanteApp = lazy(() => import('solicitante/App'));
-const AprobadorApp = lazy(() => import('aprobador/App'));
+const RequesterApp = lazy(() => import('requester/App'));
+const ApproverApp = lazy(() => import('approver/App'));
 
 /**
- * Shell routes. Each remote owns its routes: the solicitante remote owns
- * /solicitante* (PR #6), the aprobador remote owns /approve* (PR #7). The host
+ * Shell routes. Each remote owns its routes: the requester remote owns
+ * /requester* (PR #6), the approver remote owns /approve* (PR #7). The host
  * only composes them lazily — remotes never need to know about navigation.
  */
 export default function App() {
@@ -15,10 +15,10 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route
-        path="/solicitante/*"
+        path="/requester/*"
         element={
           <Suspense fallback={<div>Loading requester module...</div>}>
-            <SolicitanteApp />
+            <RequesterApp />
           </Suspense>
         }
       />
@@ -26,7 +26,7 @@ export default function App() {
         path="/approve/*"
         element={
           <Suspense fallback={<div>Loading approver module...</div>}>
-            <AprobadorApp />
+            <ApproverApp />
           </Suspense>
         }
       />

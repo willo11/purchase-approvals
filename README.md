@@ -16,7 +16,7 @@ becomes **COMPLETED**.
   Framework (Lambda + API Gateway), DynamoDB single-table (PK/SK, GSI1, TTL on
   `otpExpiresAt`), S3 (PDF evidence), pdf-lib (standard Helvetica font).
 - **Frontend** (`frontend/`): React 18, axios, React Router v6, webpack 5
-  Module Federation — host shell + `solicitante` and `aprobador` remotes.
+  Module Federation — host shell + `requester` and `approver` remotes.
 - **Mobile** (`mobile/`): React Native study phase — deferred, separate change.
 
 ## High-Level Architecture
@@ -36,8 +36,8 @@ becomes **COMPLETED**.
 |---|---|
 | `backend/` | Serverless API, domain/application/infrastructure, Jest (unit + integration) |
 | `frontend/host` | Module Federation shell (port 3000) |
-| `frontend/solicitante` | Requester remote (port 3001) |
-| `frontend/aprobador` | Approver remote (port 3002) |
+| `frontend/requester` | Requester remote (port 3001) |
+| `frontend/approver` | Approver remote (port 3002) |
 | `mobile/` | React Native study (deferred) |
 | `openspec/` | SDD artifacts: specs, proposal, design, tasks |
 
@@ -67,7 +67,7 @@ improvement. See `backend/DECISIONS.md` entry 10.
 ```bash
 pnpm install          # (once) per package: root + backend + each frontend app
 pnpm run dev:back    # backend: dynamodb-local + serverless-offline API  (:4000)
-pnpm run dev:front   # frontend: host + solicitante + aprobador  (:3000 / :3001 / :3002)
+pnpm run dev:front   # frontend: host + requester + approver  (:3000 / :3001 / :3002)
 # or `pnpm run dev` to start everything together (from repo root)
 ```
 
@@ -98,18 +98,18 @@ pnpm run build          # tsc -> dist/  (pure backend bundle, no tests)
 ### Frontend (`frontend/`) — three independent apps
 Use the single command (from the repo root) so you don't open three terminals:
 ```bash
-pnpm run dev:front      # starts host :3000, solicitante :3001, aprobador :3002
+pnpm run dev:front      # starts host :3000, requester :3001, approver :3002
 ```
 (Equivalent manually: `cd frontend/<app> && pnpm install && pnpm start` per app.)
 
 **What you should expect:**
 - **http://localhost:3000** (host) — the shell: landing/menu with navigation
-  pointing to `/solicitante*` and `/approve*`.
+  pointing to `/requester*` and `/approve*`.
 - Visiting those routes lazy-loads each remote via Module Federation:
-  - `/solicitante*` loads the **solicitante** app from :3001
-  - `/approve*` loads the **aprobador** app from :3002
+  - `/requester*` loads the **requester** app from :3001
+  - `/approve*` loads the **approver** app from :3002
 - Currently each remote is a placeholder page (real screens land with PRs #6
-  and #7). To verify federation, open http://localhost:3000/solicitante —
+  and #7). To verify federation, open http://localhost:3000/requester —
   you should see content served by the remote on :3001, not a host error.
 
 ### Whole-repo convenience scripts (from repo root, no workspace tool)
@@ -117,7 +117,7 @@ pnpm run dev:front      # starts host :3000, solicitante :3001, aprobador :3002
 pnpm run dev:back   # all backend services (db + API)
 pnpm run dev:front  # all frontend apps (host + 2 remotes)
 pnpm run dev        # backend + frontend together
-pnpm run test:ci    # backend + host + solicitante + aprobador, coverage >= 60%
+pnpm run test:ci    # backend + host + requester + approver, coverage >= 60%
 pnpm run build:ci   # build everything; proves the whole monorepo compiles
 ```
 
@@ -134,5 +134,5 @@ Gateway + DynamoDB + S3; frontend: static bundles on S3 + CloudFront).
 ## Testing
 
 ```bash
-npm run test:ci   # backend + host + solicitante + aprobador, coverage >= 60%
+npm run test:ci   # backend + host + requester + approver, coverage >= 60%
 ```

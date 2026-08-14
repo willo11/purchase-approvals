@@ -9,7 +9,7 @@
 
 ## 1. Micro-frontends via webpack Module Federation vs single React app
 - **Tradeoff**: the assignment explicitly asks for micro front-ends with webpack; a single app is simpler but doesn't demonstrate the pattern.
-- **Decision**: Host app + 2 remotes (solicitante, aprobador) with webpack Module Federation.
+- **Decision**: Host app + 2 remotes (requester, approver) with webpack Module Federation.
 - **Why**: the domain splits naturally by user role / bounded context — the requester world (create/list/detail/PDF) and the approver world (OTP + decide) have different lifecycles. Each remote has its own build, tests (>=60%), and deploy.
 - **Costs**: 3 builds instead of 1, more local-dev complexity, more config surface — overkill for the app size, justified by the requirement and by demonstrating the pattern.
 - **Key mechanic**: `shared: { react: { singleton: true } }` — guarantees ONE React instance on the page (two Reacts would break the DOM).

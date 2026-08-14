@@ -34,7 +34,7 @@ provider:
 custom:
   serverless-offline:
     # Backend API runs on :4000 so it never collides with the frontend
-    # (host :3000, solicitante :3001, aprobador :3002).
+    # (host :3000, requester :3001, approver :3002).
     httpPort: 4000
   tableName: purchase-approvals-${self:provider.stage}
   # NOTE: S3 bucket names are globally unique. If `purchase-approvals-evidence-<stage>`

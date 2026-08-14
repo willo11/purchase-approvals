@@ -26,8 +26,8 @@ module.exports = {
     new ModuleFederationPlugin({
       name: 'host',
       remotes: {
-        solicitante: 'solicitante@http://localhost:3001/remoteEntry.js',
-        aprobador: 'aprobador@http://localhost:3002/remoteEntry.js',
+        requester: 'requester@http://localhost:3001/remoteEntry.js',
+        approver: 'approver@http://localhost:3002/remoteEntry.js',
       },
       shared: {
         react: { singleton: true },

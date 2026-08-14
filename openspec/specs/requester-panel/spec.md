@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the requester-facing frontend (host + `solicitante` remote): list, create, detail with per-approver status, and PDF download. All data flows over REST (axios/fetch). No authentication.
+Define the requester-facing frontend (host + `requester` remote): list, create, detail with per-approver status, and PDF download. All data flows over REST (axios/fetch). No authentication.
 
 Dependencies: backend REST API for `user-registry` (user list for the create form), `purchase-request`, and `pdf-evidence`.
 

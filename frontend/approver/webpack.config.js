@@ -24,7 +24,7 @@ module.exports = {
   },
   plugins: [
     new ModuleFederationPlugin({
-      name: 'aprobador',
+      name: 'approver',
       filename: 'remoteEntry.js',
       exposes: {
         './App': './src/App',

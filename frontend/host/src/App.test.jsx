@@ -6,11 +6,11 @@ import App from './App';
 // in Jest they are mocked so the host's lazy/Suspense composition is testable.
 // `virtual: true` registers the mocks without resolving the real modules,
 // which only exist at webpack build time.
-jest.mock('solicitante/App', () => {
-  return { __esModule: true, default: () => <div>mock solicitante</div> };
+jest.mock('requester/App', () => {
+  return { __esModule: true, default: () => <div>mock requester</div> };
 }, { virtual: true });
-jest.mock('aprobador/App', () => {
-  return { __esModule: true, default: () => <div>mock aprobador</div> };
+jest.mock('approver/App', () => {
+  return { __esModule: true, default: () => <div>mock approver</div> };
 }, { virtual: true });
 
 test('renders the landing page with links to both remotes', () => {
@@ -27,22 +27,22 @@ test('renders the landing page with links to both remotes', () => {
   expect(screen.getByRole('link', { name: /approver/i })).toBeInTheDocument();
 });
 
-test('lazily composes the solicitante remote on /solicitante*', async () => {
+test('lazily composes the requester remote on /requester*', async () => {
   render(
-    <MemoryRouter initialEntries={['/solicitante']}>
+    <MemoryRouter initialEntries={['/requester']}>
       <App />
     </MemoryRouter>
   );
 
-  expect(await screen.findByText('mock solicitante')).toBeInTheDocument();
+  expect(await screen.findByText('mock requester')).toBeInTheDocument();
 });
 
-test('lazily composes the aprobador remote on /approve*', async () => {
+test('lazily composes the approver remote on /approve*', async () => {
   render(
     <MemoryRouter initialEntries={['/approve']}>
       <App />
     </MemoryRouter>
   );
 
-  expect(await screen.findByText('mock aprobador')).toBeInTheDocument();
+  expect(await screen.findByText('mock approver')).toBeInTheDocument();
 });

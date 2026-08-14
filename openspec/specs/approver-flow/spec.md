@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the approver-facing frontend (`aprobador` remote): token screen with terminal-state gating, OTP entry, request detail with Approve/Reject, and terminal-state screens. All data flows over REST (axios/fetch). No authentication.
+Define the approver-facing frontend (`approver` remote): token screen with terminal-state gating, OTP entry, request detail with Approve/Reject, and terminal-state screens. All data flows over REST (axios/fetch). No authentication.
 
 Dependencies: backend REST API for `approver-otp` (token gate, OTP) and `approval-signature` (approve/reject). The approver's name is not collected in this UI; it comes from the registered `user-registry` snapshot.
 
