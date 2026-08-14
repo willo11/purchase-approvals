@@ -13,7 +13,7 @@ import { ListRequests } from '../../application/ListRequests';
 import { GetRequestDetail } from '../../application/GetRequestDetail';
 import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepository';
 import { makeUserRegistry } from '../../infrastructure/DynamoDbUserRegistry';
-import { InMemoryTokenIssuer } from '../../infrastructure/InMemoryTokenIssuer';
+import { TokenIssuer } from '../../infrastructure/TokenIssuer';
 import { LogMailer } from '../../infrastructure/LogMailer';
 
 /**
@@ -114,7 +114,7 @@ export function buildGetRequestDetail(getRequestDetail: GetRequestDetail) {
  */
 const repository = makeRequestRepository();
 const registry = makeUserRegistry();
-const tokenIssuer = new InMemoryTokenIssuer();
+const tokenIssuer = new TokenIssuer();
 const mailer = new LogMailer();
 
 export const create = buildCreateRequest(

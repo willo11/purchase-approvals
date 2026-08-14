@@ -9,9 +9,10 @@ export interface ApprovalLink {
 /**
  * Issues per-approver approval tokens and approve URLs (design R1).
  *
- * The full token/OTP implementation lands in PR #3 (approver-otp); here the
- * port is defined and a minimal callable placeholder wires it so the create
- * flow, handlers and tests compile and run in this PR.
+ * Implemented by {@link TokenIssuer} in `infrastructure/`. The create use case
+ * issues each approver's token ONCE and reuses it for both the persisted APPR
+ * record and the mailed approve link, so the later approve flow can resolve
+ * the URL token against the stored record.
  */
 export interface TokenIssuerPort {
   /**

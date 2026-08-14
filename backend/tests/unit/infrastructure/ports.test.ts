@@ -1,21 +1,26 @@
 import { randomUUID } from 'node:crypto';
-import { InMemoryTokenIssuer } from '../../../src/infrastructure/InMemoryTokenIssuer';
+import { TokenIssuer } from '../../../src/infrastructure/TokenIssuer';
 import { LogMailer } from '../../../src/infrastructure/LogMailer';
 
-describe('InMemoryTokenIssuer (PR #2 placeholder)', () => {
-  it('issues a unique token per approver and a well-formed approve URL', () => {
-    const issuer = new InMemoryTokenIssuer('https://example.com');
+describe('TokenIssuer (spec R1)', () => {
+  it('issues a unique URL-safe uuid token per approver and a well-formed approve URL', () => {
+    const issuer = new TokenIssuer('https://example.com');
 
     const a = issuer.issueApprovalLink('req-1', 'bob@example.com');
     const b = issuer.issueApprovalLink('req-1', 'carol@example.com');
 
+    // unique UUID per approver (R1 scenario "unique tokens per approver")
     expect(a.token).not.toBe(b.token);
-    expect(a.url).toContain('https://example.com/approve');
-    expect(a.url).toContain('request_id=req-1');
-    expect(a.url).toContain('approver_token=' + encodeURIComponent(a.token));
-    // token is a uuid
-    expect(() => randomUUID()).not.toThrow();
-    expect(a.token.length).toBeGreaterThan(10);
+    expect(a.token).toMatch(/^[0-9a-f-]{36}$/);
+
+    // link form https://<host>/approve?request_id=<id>&approver_token=<uuid>
+    expect(a.url).toBe(
+      `https://example.com/approve?request_id=req-1&approver_token=${encodeURIComponent(a.token)}`
+    );
+    const parsed = new URL(a.url);
+    expect(parsed.searchParams.get('request_id')).toBe('req-1');
+    expect(parsed.searchParams.get('approver_token')).toBe(a.token);
+    expect(randomUUID()).toBeDefined();
   });
 });
 
