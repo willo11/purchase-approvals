@@ -29,6 +29,10 @@ provider:
       Resource: !Join ['', [!GetAtt PurchaseApprovalsEvidenceBucket.Arn, '/*']]
 
 custom:
+  serverless-offline:
+    # Backend API runs on :4000 so it never collides with the frontend
+    # (host :3000, solicitante :3001, aprobador :3002).
+    httpPort: 4000
   tableName: purchase-approvals-${self:provider.stage}
   # NOTE: S3 bucket names are globally unique. If `purchase-approvals-evidence-<stage>`
   # is taken, suffix the name at deploy time (PR #8) rather than changing the key schema.

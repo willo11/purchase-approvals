@@ -4,7 +4,13 @@
   "private": true,
   "description": "Monorepo root — convenience scripts only (no workspace tool). backend/, frontend/ and mobile/ are independent packages.",
   "scripts": {
-    "build:ci": "npm --prefix backend run build && npm --prefix frontend/host run build && npm --prefix frontend/solicitante run build && npm --prefix frontend/aprobador run build",
-    "test:ci": "npm --prefix backend test && npm --prefix frontend/host test && npm --prefix frontend/solicitante test && npm --prefix frontend/aprobador test"
+    "build:ci": "pnpm -C backend run build && pnpm -C frontend/host run build && pnpm -C frontend/solicitante run build && pnpm -C frontend/aprobador run build",
+    "test:ci": "pnpm -C backend test && pnpm -C frontend/host test && pnpm -C frontend/solicitante test && pnpm -C frontend/aprobador test",
+    "dev:back": "pnpm -C backend run dev:all",
+    "dev:front": "concurrently -k -n host,sol,apr \"pnpm -C frontend/host start\" \"pnpm -C frontend/solicitante start\" \"pnpm -C frontend/aprobador start\"",
+    "dev": "concurrently -k -n back,front \"pnpm run dev:back\" \"pnpm run dev:front\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
   }
 }

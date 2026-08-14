@@ -9,6 +9,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "dev": "serverless offline",
+    "dev:all": "npm run db:up && npm run dev",
     "test": "jest --coverage",
     "test:unit": "jest --coverage",
     "test:integration": "DYNAMODB_LOCAL=http://localhost:8000 jest --runInBand --coverage=false",

@@ -56,20 +56,69 @@ improvement. See `backend/DECISIONS.md` entry 10.
 
 ## Run Instructions
 
-_PLACEHOLDER — full walkthrough in PR #8._ Quick start:
+### Prerequisites
+- Node.js 20+ (`node -v`)
+- **pnpm** v9+ (`pnpm -v`) — the project package manager (`npm` lockfiles are not used)
+- Docker (only for DynamoDB local — integration tests)
+- AWS CLI credentials are NOT required for local development (no real AWS calls)
+
+### TL;DR — one command each
 
 ```bash
-# Backend (needs Docker for integration tests only)
-cd backend && npm install
-npm run db:up          # dynamodb-local on :8000 (integration tests only)
-npm test               # unit suite + coverage threshold 60
-npm run test:integration
-npm run build          # tsc -> dist/
+pnpm install          # (once) per package: root + backend + each frontend app
+pnpm run dev:back    # backend: dynamodb-local + serverless-offline API  (:4000)
+pnpm run dev:front   # frontend: host + solicitante + aprobador  (:3000 / :3001 / :3002)
+# or `pnpm run dev` to start everything together (from repo root)
+```
 
-# Frontend (three independent apps)
-cd frontend/host && npm install && npm start          # :3000
-cd frontend/solicitante && npm install && npm start   # :3001
-cd frontend/aprobador && npm install && npm start     # :3002
+### Backend (`backend/`) — port **4000**
+```bash
+cd backend
+pnpm install
+
+pnpm run dev:all       # dynamodb-local (docker) + serverless-offline together
+# equiv. manually: pnpm run db:up  then  pnpm run dev
+```
+
+**What you should see once the API is up:**
+- The local API serves at **http://localhost:4000** with the `dev` stage prefix
+  (port 3000 is reserved for the frontend host).
+- Smoke-test: `curl http://localhost:4000/dev/health` → `{"status":"ok"}`.
+- The single DynamoDB table (PK/SK + GSI1 + TTL on `otpExpiresAt`) and the S3
+  evidence bucket are declared in `serverless.yml`; real endpoints land with
+  each capability PR (user-registry first).
+
+Other commands:
+```bash
+pnpm test               # unit suite + coverage (global >= 60)
+pnpm run test:integration   # runs against dynamodb-local (needs db:up)
+pnpm run build          # tsc -> dist/  (pure backend bundle, no tests)
+```
+
+### Frontend (`frontend/`) — three independent apps
+Use the single command (from the repo root) so you don't open three terminals:
+```bash
+pnpm run dev:front      # starts host :3000, solicitante :3001, aprobador :3002
+```
+(Equivalent manually: `cd frontend/<app> && pnpm install && pnpm start` per app.)
+
+**What you should expect:**
+- **http://localhost:3000** (host) — the shell: landing/menu with navigation
+  pointing to `/solicitante*` and `/approve*`.
+- Visiting those routes lazy-loads each remote via Module Federation:
+  - `/solicitante*` loads the **solicitante** app from :3001
+  - `/approve*` loads the **aprobador** app from :3002
+- Currently each remote is a placeholder page (real screens land with PRs #6
+  and #7). To verify federation, open http://localhost:3000/solicitante —
+  you should see content served by the remote on :3001, not a host error.
+
+### Whole-repo convenience scripts (from repo root, no workspace tool)
+```bash
+pnpm run dev:back   # all backend services (db + API)
+pnpm run dev:front  # all frontend apps (host + 2 remotes)
+pnpm run dev        # backend + frontend together
+pnpm run test:ci    # backend + host + solicitante + aprobador, coverage >= 60%
+pnpm run build:ci   # build everything; proves the whole monorepo compiles
 ```
 
 ## Swagger / OpenAPI

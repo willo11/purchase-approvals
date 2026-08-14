@@ -92,3 +92,9 @@
 - **Tradeoff**: plain vs hashed storage; unlimited vs bounded retries.
 - **Decision**: 6-digit numeric OTP, stored SHA-256 hashed, unique per approver, valid 3 minutes; 3 failed attempts invalidate the token; expired OTP → "generate new OTP" (simulated resend).
 - **Why**: defense in depth (hashed at rest), bounded brute force, honest expiry semantics in code + TTL.
+
+## 15. Package manager: pnpm (v11) + the allowBuilds gotcha
+- **Decision**: pnpm for all packages; monorepo stays independent folders (no workspace tool).
+- **Why**: faster installs, strict dependency layout (symlinked store), no npm lockfiles.
+- **Gotcha (pv11)**: pnpm ignores dependency build scripts by default and **fails with exit 1 (ERR_PNPM_IGNORED_BUILDS)** until you allow them. The setting lives in `pnpm-workspace.yaml` (`allowBuilds:` map), NOT in package.json — that is a v11 breaking change. Backend needed `allowBuilds: { serverless: true, aws-sdk: true, es5-ext: true }`.
+- **Interview line**: "pnpm v11 gates postinstall scripts by default; I allowed only the ones that need to build (Serverless Framework) in pnpm-workspace.yaml."
