@@ -136,3 +136,13 @@
 - Unit tests inject a **fake repository** (same port) to test the use case with no AWS.
 - Integration tests inject the **real DynamoDB adapter** for an end-to-end round-trip.
 - Same use case, two storage backends, zero changes to the domain — that's the pattern earning its keep.
+
+---
+
+## 18. The purchase request aggregate: positional role + naive name snapshot
+- **Tradeoff**: how much state and business rule to hold in the `PurchaseRequest` entity vs scattering validation across the use case and handlers; and whether to store denormalized names or only email references.
+- **Decision**: `PurchaseRequest` is the aggregate. It OWNS creation invariants (R1): non-empty title/description, positive amount with ≤2 decimals, exactly 3 approver emails, distinct from one another and from the requester. `GlobalStatus` (`PENDING | COMPLETED | REJECTED`) dominates all gates with precedence `COMPLETED > REJECTED > PENDING` (R2). Roles are POSITIONAL (requester/approver derived from where a user is referenced — see Decision 9). Names are SNAPSHOTTED at creation: `createdBy: {email, name}` and each approver `{email, name}` (Decision 3).
+- **Why**: the aggregate gives one place where a request's invariants are guaranteed before anything touches the outside world — the handler stays a thin error→HTTP mapper. Role is positional because a personal signature needs the real registered identity, not a stored role label. Snapshotting makes evidence immutable: a later name/position change to a registered user never corrupts an existing request's PDF (the exact tradeoff spelled out in Decision 3).
+- **Costs**: denormalization duplicates names across request rows (accepted NoSQL cost); a request whose approver is later removed from the registry still carries the old snapshot — which is the point. The `approvers` snapshot array on the REQ row and the 3 separate `APPR#<email>` rows both hold names today; the separate rows are the durable status/token records, the array is the quick evidence read.
+- **Interview line**: "The request is the aggregate: it enforces its own invariants at creation, so the handler never embeds business rules. Role is derived from where a user is referenced, not stored on the purchase — and names are a deliberate snapshot so the PDF evidence can't break when identity data changes."
+- **Note (registry 404 vs 400)**: unknown requester/approver emails surface as `UnknownUserError` → HTTP 404 per the design-api policy. The delta spec's R1 "Unknown approver email" scenario literally reads 400; the design/API contract (and this PR's instructions) authoritatively chose 404 for "unknown registry emails". Flagged so the reviewer can confirm the intended code before merge.

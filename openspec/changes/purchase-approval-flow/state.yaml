@@ -2,7 +2,7 @@ change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
 current_phase: apply
-current_pr: 2
+current_pr: 3
 
 dag:
   proposal: done
@@ -15,9 +15,9 @@ dag:
 
 branch:
   base: main
-  active: feat/purchase-request
-  applied_prs: [0, 1]
-  pending_prs: [2, 3, 4, 5, 6, 7, 8]
+  active: feat/approver-otp
+  applied_prs: [0, 1, 2]
+  pending_prs: [3, 4, 5, 6, 7, 8]
 
 notes: |
   PR #0 bootstrap merged into main (feat/bootstrap promoted to main).
@@ -32,4 +32,15 @@ notes: |
   all ADDED). Dispatcher now reports next=apply.
   Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
 
-updated_at: 2026-08-14T21:12:00
+  PR #2 purchase-request MERGED — the aggregate (PurchaseRequest/Approver/
+  Amount/GlobalStatus/ApproverStatus) + CreateRequest/ListRequests/GetRequestDetail
+  use cases + DynamoDbRequestRepository (REQ#<id> / REQ#<id>/APPR#<email>, GSI1
+  newest-first). TokenIssuerPort/MailPort defined as interfaces with placeholders
+  (InMemoryTokenIssuer, LogMailer) — real OTP/TTL + DB-backed mock-mail in PR #3.
+  Fresh review caught + fixed a CRITICAL: token was issued TWICE per approver
+  (persisted token != mailed approver_token); now issued once and reused — the
+  PR #3 approve flow will resolve. Unknown approver email contract fixed to 404
+  (spec + design-api reconciled; implementation follows 404). fresh review also
+  flagged non-atomic 4-PutItem write — recommend TransactWriteItems in a later PR.
+
+updated_at: 2026-08-14T21:45:00
