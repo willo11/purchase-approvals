@@ -1,4 +1,9 @@
-import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  QueryCommand,
+  TransactWriteCommand,
+} from '@aws-sdk/lib-dynamodb';
 import { DynamoDbRequestRepository } from '../../../src/infrastructure/DynamoDbRequestRepository';
 import { PurchaseRequest } from '../../../src/domain/PurchaseRequest';
 
@@ -44,12 +49,14 @@ describe('DynamoDbRequestRepository', () => {
       { email: 'dave@example.com', name: 'Dave', token: 't-dave' },
     ]);
 
-    expect(client.send).toHaveBeenCalledTimes(4);
-    // 1 REQ row + 3 APPR rows
-    const puts = client.send.mock.calls.map(([c]) => c);
-    expect(puts.every((c) => c instanceof PutCommand)).toBe(true);
+    expect(client.send).toHaveBeenCalledTimes(1);
+    const [command] = client.send.mock.calls[0];
+    // ONE TransactWriteItems carrying 4 Put statements: REQ + 3 APPR
+    expect(command).toBeInstanceOf(TransactWriteCommand);
+    expect(command.input.TransactItems).toHaveLength(4);
+    expect(command.input.TransactItems.every((t: { Put?: unknown }) => t.Put)).toBe(true);
 
-    const reqPut = puts[0].input;
+    const reqPut = command.input.TransactItems[0].Put;
     expect(reqPut.Item.PK).toBe('REQ#req-1');
     expect(reqPut.Item.SK).toBe('REQ#req-1');
     expect(reqPut.Item.gsi1pk).toBe('REQ');
@@ -58,15 +65,20 @@ describe('DynamoDbRequestRepository', () => {
     expect(reqPut.Item.createdBy).toEqual({ email: 'ana@example.com', name: 'Ana' });
     expect(reqPut.Item.approvers).toHaveLength(3);
 
-    const apprPuts = puts.slice(1).map((c) => c.input);
-    expect(apprPuts.map((p) => p.Item.SK)).toEqual([
+    const transactItems = command.input.TransactItems as Array<{
+      Put?: { Item?: Record<string, unknown> };
+    }>;
+    const apprPuts = transactItems
+      .slice(1)
+      .map((t) => (t.Put?.Item ?? {}) as { SK: string; token?: string; tokenStatus?: string; attempts?: number });
+    expect(apprPuts.map((p) => p.SK)).toEqual([
       'APPR#bob@example.com',
       'APPR#carol@example.com',
       'APPR#dave@example.com',
     ]);
-    expect(apprPuts[0].Item.token).toBe('t-bob');
-    expect(apprPuts[0].Item.tokenStatus).toBe('ACTIVE');
-    expect(apprPuts[0].Item.attempts).toBe(0);
+    expect(apprPuts[0].token).toBe('t-bob');
+    expect(apprPuts[0].tokenStatus).toBe('ACTIVE');
+    expect(apprPuts[0].attempts).toBe(0);
   });
 
   it('list queries GSI1 newest first and maps summaries', async () => {
