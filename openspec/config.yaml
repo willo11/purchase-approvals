@@ -1,0 +1,69 @@
+# openspec/config.yaml
+schema: spec-driven
+
+project: purchase-approvals
+description: Serverless purchase-approval flow with concatenated digital signatures (web + mobile clients)
+
+context: |
+  Tech stack: Empty scaffold - backend/frontend/mobile folders exist but no source files yet.
+  Planned stack: Node.js/TypeScript serverless AWS (Lambda/Step Functions, API Gateway, DynamoDB, S3, PDF generation);
+  React 17+ web frontend (axios, React Router, webpack); React Native mobile app later.
+  Architecture: REST APIs consumed by the web frontend and later by the React Native app.
+  Testing: Not yet scaffolded - no test runner detected; backend slice will add Jest (or similar) during implementation
+  and MUST update this capabilities record then.
+  Conventions: Neutral professional English for all artifacts; conventional commits; git repo on main with no commits yet.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing code patterns
+    tdd: false           # No test runner scaffolded yet; enable RED-GREEN-REFACTOR once Jest (or similar) is added
+    test_command: ""     # To be set when the backend test runner is scaffolded
+  verify:
+    test_command: ""     # To be set when the backend test runner is scaffolded
+    build_command: ""
+    coverage_threshold: 60   # Assignment requirement: >=60% coverage
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: false
+  detected: 2026-08-14
+  reason: "No test runner present (empty scaffold). Backend slice MUST scaffold Jest (or similar) during implementation and update this record; strict_tdd must be re-evaluated then."
+  test_runner:
+    framework: null
+    command: null
+  layers:
+    unit:
+      available: false
+      tool: null
+    integration:
+      available: false
+      tool: null
+    e2e:
+      available: false
+      tool: null
+  coverage:
+    available: false
+    command: null
+    threshold_requirement: 60
+  quality:
+    linter:
+      available: false
+      command: null
+    type_checker:
+      available: false
+      command: null
+    formatter:
+      available: false
+      command: null

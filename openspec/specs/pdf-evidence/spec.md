@@ -1,0 +1,57 @@
+# PDF Evidence Specification
+
+## Purpose
+
+Define generation, storage, and download of the PDF evidence produced when a request completes.
+
+Dependencies: `purchase-request` data (request fields + `createdBy`/approver name snapshots + per-approver signatures); generation is triggered by `approval-signature` when the 3rd signature lands.
+
+## Requirements
+
+### R1. Generation on completion
+
+When the global status becomes `Completada`, the system MUST generate a PDF containing: request title, description, amount, date, "Solicitante" set to the requester's resolved name from `createdBy.name`, and a signature section with exactly 3 rows (one per approver), each showing the approver's registered name (from the snapshot) and signature timestamp.
+
+#### Scenario: PDF reflects requester and registered signature names
+
+- GIVEN a completed request whose `createdBy.name` is "Carol" and whose 3 approvers signed with registered names and timestamps
+- WHEN the PDF is generated
+- THEN it contains the request data with "Solicitante: Carol" and 3 signature rows, each with the approver's registered name and timestamp
+
+### R2. Storage in S3
+
+The generated PDF MUST be stored in S3 under a deterministic key derived from the request id, so it can be retrieved by id.
+
+#### Scenario: PDF stored per request
+
+- GIVEN a completed request
+- WHEN generation finishes
+- THEN the PDF is stored at a deterministic S3 key for that request id
+
+### R3. Download endpoint
+
+`GET /api/solicitudes/{id}/evidencia.pdf` MUST return the PDF with `Content-Type: application/pdf` when it exists. It MUST return HTTP 404 when the request does not exist or no PDF has been generated (request not completed).
+
+#### Scenario: Download available when completed
+
+- GIVEN a completed request with a stored PDF
+- WHEN the download endpoint is called
+- THEN HTTP 200 with the PDF bytes and `application/pdf` content type
+
+#### Scenario: Download before completion
+
+- GIVEN a request still `Pendiente`
+- WHEN the download endpoint is called
+- THEN HTTP 404 is returned
+
+### R4. Generation failure handling
+
+If PDF generation or S3 upload fails, the system MUST log the failure, keep the request status `Completada`, and the download endpoint MUST return HTTP 404 until a successful generation exists.
+
+#### Scenario: Failed generation leaves request complete
+
+- GIVEN a request whose PDF generation failed
+- WHEN the download endpoint is called
+- THEN HTTP 404 is returned
+- AND the request global status remains `Completada`
+- AND the failure is logged
