@@ -84,34 +84,34 @@ maybeDescribe('DynamoDbUserRepository (integration)', () => {
 
   it('registers a user and persists it under the email key', async () => {
     const email = `ana${unique}@example.com`;
-    const user = User.create({ name: 'Ana', email, cargo: 'Contadora' });
+    const user = User.create({ name: 'Ana', email, position: 'Accountant' });
 
     await repo.save(user);
 
     const listed = await repo.listAll();
     const found = listed.find((u) => u.getEmail().toString() === email);
     expect(found).toBeDefined();
-    expect(found?.toPrimitives()).toEqual({ name: 'Ana', email, cargo: 'Contadora' });
+    expect(found?.toPrimitives()).toEqual({ name: 'Ana', email, position: 'Accountant' });
   });
 
   it('rejects a duplicate email and does not overwrite', async () => {
     const email = `dup${unique}@example.com`;
-    const original = User.create({ name: 'Original', email, cargo: 'Analista' });
+    const original = User.create({ name: 'Original', email, position: 'Analyst' });
     await repo.save(original);
 
-    const dupe = User.create({ name: 'Duplicado', email, cargo: 'Otro Cargo' });
+    const dupe = User.create({ name: 'Duplicate', email, position: 'Other Position' });
     await expect(repo.save(dupe)).rejects.toThrow(UserAlreadyExistsError);
 
     const listed = await repo.listAll();
     const found = listed.find((u) => u.getEmail().toString() === email);
-    expect(found?.toPrimitives()).toEqual({ name: 'Original', email, cargo: 'Analista' });
+    expect(found?.toPrimitives()).toEqual({ name: 'Original', email, position: 'Analyst' });
   });
 
   it('lists registered users in creation order', async () => {
     const first = `first${unique}@example.com`;
     const second = `second${unique}@example.com`;
-    await repo.save(User.create({ name: 'Primero', email: first }));
-    await repo.save(User.create({ name: 'Segundo', email: second }));
+    await repo.save(User.create({ name: 'First', email: first }));
+    await repo.save(User.create({ name: 'Second', email: second }));
 
     const emails = (await repo.listAll()).map((u) => u.getEmail().toString());
     const firstIdx = emails.indexOf(first);

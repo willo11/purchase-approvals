@@ -22,7 +22,7 @@ The panel MUST render the list of requests fetched via REST, showing title, amou
 
 ### R2. Create request form
 
-The panel MUST provide a form with a requester email selector, exactly 3 approver email selectors, title, description, and amount. The selectors MUST be populated from `GET /api/usuarios`, and the requester selector MUST NOT allow selecting the same email as any approver. On submit the panel MUST call the create REST API and, on success, navigate to the new request's detail. Server validation errors MUST be displayed.
+The panel MUST provide a form with a requester email selector, exactly 3 approver email selectors, title, description, and amount. The selectors MUST be populated from `GET /api/users`, and the requester selector MUST NOT allow selecting the same email as any approver. On submit the panel MUST call the create REST API and, on success, navigate to the new request's detail. Server validation errors MUST be displayed.
 
 #### Scenario: User list loads on create screen
 
@@ -44,17 +44,17 @@ The panel MUST provide a form with a requester email selector, exactly 3 approve
 
 ### R3. Request detail
 
-The panel MUST render request data and a table of the 3 approvers with name, email, and status `Pendiente` / `Firmado` (with date) / `Rechazado` (with date), fetched via REST.
+The panel MUST render request data and a table of the 3 approvers with name, email, and status `PENDING` / `SIGNED` (with date) / `REJECTED` (with date), fetched via REST.
 
 #### Scenario: Per-approver status rendered
 
 - GIVEN a request whose 2 approvers signed and 1 is pending
 - WHEN the detail screen loads
-- THEN the table shows 2 `Firmado` rows with dates and 1 `Pendiente` row
+- THEN the table shows 2 `SIGNED` rows with dates and 1 `PENDING` row
 
 ### R4. PDF download
 
-When the global status is `Completada`, the detail screen MUST show a "Download PDF" button that downloads `GET /api/solicitudes/{id}/evidencia.pdf`. The button MUST NOT be shown otherwise.
+When the global status is `COMPLETED`, the detail screen MUST show a "Download PDF" button that downloads `GET /api/purchase-requests/{id}/evidence.pdf`. The button MUST NOT be shown otherwise.
 
 #### Scenario: Download offered only when completed
 
@@ -64,7 +64,7 @@ When the global status is `Completada`, the detail screen MUST show a "Download 
 
 #### Scenario: No button before completion
 
-- GIVEN a request with status `Pendiente`
+- GIVEN a request with status `PENDING`
 - WHEN the detail screen renders
 - THEN no download button is shown
 

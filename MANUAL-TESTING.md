@@ -1,133 +1,133 @@
 # Manual Testing — Purchase Approvals
 
-Guía para probar el sistema por API con `curl`, sin levantar AWS. Todo corre local
-(DynamoDB en Docker + `serverless offline` en `:4000`). Se actualiza a medida que
-se suman PRs.
+Guide to exercising the system by API with `curl`, without spinning up AWS. Everything
+runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
+PRs land.
 
-> Estado actual: **PR #1 — user-registry (backend API)**. Frontend aún NO está
-> conectado al backend (llega en PR #6 requester-panel y PR #7 approver-flow),
-> así que por ahora el testing manual es 100% backend por `curl`.
+> Current status: **PR #1 — user-registry (backend API)**. The frontend is NOT yet
+> connected to the backend (that lands in PR #6 requester-panel and PR #7 approver-flow),
+> so manual testing is, for now, 100% backend via `curl`.
 
 ---
 
-## Preparación (una vez)
+## Setup (once)
 
-### 1. Credenciales → `.env`
+### 1. Credentials → `.env`
 
-Copiá el template y ajustalo si hace falta:
+Copy the template and adjust it if needed:
 
 ```bash
-cp backend/.env.example backend/.env   # valores locales ya listos por defecto
+cp backend/.env.example backend/.env   # local values are already ready by default
 ```
 
-El backend carga `backend/.env` automáticamente (serverless-dotenv-plugin).
-Variables que te importan:
+The backend loads `backend/.env` automatically (serverless-dotenv-plugin).
+Variables that matter to you:
 
-| Variable | Valor local | Nota |
+| Variable | Local value | Note |
 |----------|-------------|------|
-| `DYNAMODB_LOCAL` | `http://localhost:8000` | Apunta a DynamoDB en Docker. Borralo/vaciarlo para apuntar a AWS real en deploy. |
-| `TABLE_NAME` | `purchase-approvals-dev` | Tabla single-table. Debe existir localmente. |
-| `AWS_ACCESS_KEY_ID` / `SECRET` | `local-dummy` | Solo local. Nunca credenciales reales acá. |
+| `DYNAMODB_LOCAL` | `http://localhost:8000` | Points to DynamoDB in Docker. Remove/empty it to target real AWS at deploy. |
+| `TABLE_NAME` | `purchase-approvals-dev` | Single-table name. It must exist locally. |
+| `AWS_ACCESS_KEY_ID` / `SECRET` | `local-dummy` | Local only. Never put real credentials here. |
 
-### 2. Levantar DynamoDB local + crear la tabla
+### 2. Start local DynamoDB + create the table
 
 ```bash
-pnpm -C backend run db:up             # levanta dynamodb-local en :8000 (Docker)
-pnpm -C backend run db:create-table   # crea purchase-approvals-dev (sin AWS CLI)
+pnpm -C backend run db:up             # starts dynamodb-local on :8000 (Docker)
+pnpm -C backend run db:create-table   # creates purchase-approvals-dev (no AWS CLI)
 ```
 
-`db:create-table` lee el schema de tu `serverless.yml` (PK/SK + GSI1 + TTL) y lo crea
-localmente con `@aws-sdk`. Es idempotente (si ya existe te avisa). No necesitás el
-AWS CLI.
+`db:create-table` reads the schema from your `serverless.yml` (PK/SK + GSI1 + TTL) and
+creates it locally with `@aws-sdk`. It is idempotent (it tells you if the table already
+exists). You do not need the AWS CLI.
 
-### ¿Por qué hay que crear la tabla a mano (solo localmente)?
+### Why create the table by hand (local only)?
 
-DynamoDB **no autoprovisiona tablas al escribirles**: las creás vos (o la infraestructura).
-La diferencia según dónde corras:
+DynamoDB **does not auto-provision tables on write**: you create them (or the
+infrastructure does). The difference depends on where you run:
 
-| Entorno | Quién crea la tabla | ¿A mano? |
+| Environment | Who creates the table | Manual? |
 |---------|--------------------|----------|
-| **AWS (deploy)** | `sls deploy` → **CloudFormation** lee `serverless.yml` y crea `PurchaseApprovalsTable` (con GSI1 + TTL) automáticamente | No |
-| **Local (serverless-offline)** | Nadie. `serverless-offline` corre las Lambdas pero **NO provisiona los recursos de CloudFormation** | Sí, con el `aws create-table` de arriba |
+| **AWS (deploy)** | `sls deploy` → **CloudFormation** reads `serverless.yml` and creates `PurchaseApprovalsTable` (with GSI1 + TTL) automatically | No |
+| **Local (serverless-offline)** | Nobody. `serverless-offline` runs the Lambdas but does **NOT** provision the CloudFormation resources | Yes, with the `aws create-table` above |
 
-Además, el contenedor `amazon/dynamodb-local` corre **en memoria** (este compose no usa
-`-dbPath` ni monta volumen), así que la tabla local desaparece al reiniciar el contenedor.
-Re-creala con el comando de arriba tras cada `db:up`. (Nota: los tests de integración
-crean su **propia** tabla descartable, así que esa no te sirve para estos curls.)
+Also, the `amazon/dynamodb-local` container runs **in memory** (this compose does not
+use `-dbPath` or mount a volume), so the local table disappears when the container
+restarts. Re-create it with the command above after each `db:up`. (Note: the integration
+tests create their **own** disposable table, so that one does not serve these curls.)
 
-## Arrancar el backend
+## Start the backend
 
 ```bash
-pnpm -C backend run dev        # serverless offline en :4000 (usa el .env)
+pnpm -C backend run dev        # serverless offline on :4000 (uses the .env)
 ```
 
-Listo: el API queda en `http://localhost:4000/dev`.
+Done: the API is at `http://localhost:4000/dev`.
 
 ---
 
-## Endpoints para probar
+## Endpoints to test
 
-### PR #1 — user-registry (`/api/usuarios`)
+### PR #1 — user-registry (`/api/users`)
 
 ```bash
-# Smoke — ¿está vivo? → {"status":"ok"}
+# Smoke — is it alive? → {"status":"ok"}
 curl http://localhost:4000/dev/health
 
-# 1. Crear empleado → 201 + User {name,email,cargo}
-curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/usuarios \
+# 1. Create employee → 201 + User {name,email,position}
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/users \
   -H "Content-Type: application/json" \
-  -d '{"name":"Ana","email":"ana@example.com","cargo":"Analista"}'
+  -d '{"name":"Ana","email":"ana@example.com","position":"Analyst"}'
 
-# 2. Email duplicado → 409
-curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/usuarios \
+# 2. Duplicate email → 409
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/users \
   -H "Content-Type: application/json" \
-  -d '{"name":"Otra","email":"ana@example.com"}'
+  -d '{"name":"Another","email":"ana@example.com"}'
 
-# 3. Email inválido → 400
-curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/usuarios \
+# 3. Invalid email → 400
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/users \
   -H "Content-Type: application/json" \
-  -d '{"name":"Ana","email":"no-soy-email"}'
+  -d '{"name":"Ana","email":"not-an-email"}'
 
-# 4. Nombre vacío → 400
-curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/usuarios \
+# 4. Empty name → 400
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/users \
   -H "Content-Type: application/json" \
   -d '{"name":"","email":"b@example.com"}'
 
-# 5. Listar empleados → 200, en orden de creación
-curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/api/usuarios
+# 5. List employees → 200, in creation order
+curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/api/users
 ```
 
-**Resultado esperado**: `201 → 409 → 400 → 400 → 200 (con los usuarios registrados)`.
+**Expected result**: `201 → 409 → 400 → 400 → 200 (with the registered users)`.
 
-### PR #X — (pendiente)
+### PR #X — (pending)
 
-Se agregan acá los curls de los próximos PRs cuando lleguemos (purchase-request,
+The curls for the coming PRs will be added here as they land (purchase-request,
 approver-otp, approval-signature, pdf-evidence, requester-panel, approver-flow).
 
 ---
 
-## Contexto de Clean Code (para sustentar)
+## Clean Code context (to defend in the interview)
 
-El flujo verificado por estos curls es `HTTP → handler → use case → port → DynamoDB`:
+The flow verified by these curls is `HTTP → handler → use case → port → DynamoDB`:
 
 ```
 api/handlers/userRegistry.ts          → HTTP (request/response)
-   ▼ llama
-application/RegisterUser.ts            → caso de uso (reglas de negocio)
-   ▼ depende del PORT (interfaz)
-application/ports/UserRepository.ts   → contrato, no implementación
-   ▲ implementa
-infrastructure/DynamoDbUserRepository.ts → adapter (única capa que conoce DynamoDB)
+   ▼ calls
+application/RegisterUser.ts            → use case (business rules)
+   ▼ depends on the PORT (interface)
+application/ports/UserRepository.ts   → contract, not implementation
+   ▲ implements
+infrastructure/DynamoDbUserRepository.ts → adapter (the only layer that knows DynamoDB)
 ```
 
-- **Dedupe atómico**: `PutItem` condicional (`attribute_not_exists(PK)`) → email
-  duplicado se rechaza con 409 sin race condition (no es get-then-put).
-- **Listado en orden**: query por GSI1 (`gsi1sk = createdAt`, `ScanIndexForward: true`).
-- **`domain` sin framework**: `User`/`Email` no importan nada externo.
+- **Atomic dedupe**: conditional `PutItem` (`attribute_not_exists(PK)`) → a duplicate
+  email is rejected with 409 with no race condition (it is not get-then-put).
+- **Ordered listing**: query by GSI1 (`gsi1sk = createdAt`, `ScanIndexForward: true`).
+- **`domain` without a framework**: `User`/`Email` import nothing external.
 
-## Check in
+## Checklist
 
-- [ ] `backend/.env` creado desde `.env.example`
-- [ ] `dynamodb-local` levantado (`db:up`) y tabla `purchase-approvals-dev` creada
-- [ ] `pnpm -C backend run dev` responde en `:4000`
-- [ ] Los 5 curls del PR #1 devuelven `201 → 409 → 400 → 400 → 200`
+- [ ] `backend/.env` created from `.env.example`
+- [ ] `dynamodb-local` running (`db:up`) and `purchase-approvals-dev` table created
+- [ ] `pnpm -C backend run dev` responds on `:4000`
+- [ ] The 5 PR #1 curls return `201 → 409 → 400 → 400 → 200`

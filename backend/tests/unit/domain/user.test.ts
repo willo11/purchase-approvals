@@ -1,4 +1,4 @@
-import { User, DEFAULT_CARGO } from '../../../src/domain/User';
+import { User, DEFAULT_POSITION } from '../../../src/domain/User';
 import { Email } from '../../../src/domain/values/Email';
 import { EmptyNameError, InvalidEmailError } from '../../../src/domain/errors';
 
@@ -24,18 +24,18 @@ describe('Email value object', () => {
 
 describe('User entity', () => {
   it('builds a User from valid inputs', () => {
-    const user = User.create({ name: 'Ana', email: 'ana@example.com', cargo: 'Contadora' });
+    const user = User.create({ name: 'Ana', email: 'ana@example.com', position: 'Accountant' });
     expect(user.toPrimitives()).toEqual({
       name: 'Ana',
       email: 'ana@example.com',
-      cargo: 'Contadora',
+      position: 'Accountant',
     });
   });
 
-  it('applies the default cargo when omitted', () => {
+  it('applies the default position when omitted', () => {
     const user = User.create({ name: 'Ana', email: 'ana@example.com' });
-    expect(user.getCargo()).toBe(DEFAULT_CARGO);
-    expect(user.toPrimitives().cargo).toBe(DEFAULT_CARGO);
+    expect(user.getPosition()).toBe(DEFAULT_POSITION);
+    expect(user.toPrimitives().position).toBe(DEFAULT_POSITION);
   });
 
   it('trims name and rejects empty/whitespace-only names', () => {

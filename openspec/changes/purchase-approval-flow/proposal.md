@@ -2,17 +2,17 @@
 
 ## Intent
 
-Deliver a serverless purchase-approval flow: employees register (name + email + cargo); a requester creates purchase requests with 3 approvers (all registered employees); each approver receives a unique link + time-limited OTP, signs or rejects; when all 3 sign, the backend generates PDF evidence and marks the request "Completada". This turns the empty `backend/`/`frontend/` scaffold into a working end-to-end AWS demo meeting the assignment's testing, documentation, and deployment deliverables.
+Deliver a serverless purchase-approval flow: employees register (name + email + position); a requester creates purchase requests with 3 approvers (all registered employees); each approver receives a unique link + time-limited OTP, signs or rejects; when all 3 sign, the backend generates PDF evidence and marks the request "COMPLETED". This turns the empty `backend/`/`frontend/` scaffold into a working end-to-end AWS demo meeting the assignment's testing, documentation, and deployment deliverables.
 
 ## Scope
 
 ### In Scope
-- User registry: `POST /api/usuarios` (register: name, email, cargo), `GET /api/usuarios` (list); email = unique natural key (`PK=USER#<email>`).
+- User registry: `POST /api/users` (register: name, email, position), `GET /api/users` (list); email = unique natural key (`PK=USER#<email>`).
 - Backend (first slice): Node.js + TypeScript, Clean Architecture (`domain/`, `application/`, `infrastructure/`, `api/`).
 - Serverless AWS via Serverless Framework: Lambda handlers, API Gateway REST, DynamoDB single-table, S3 for PDFs.
-- Request lifecycle: create/list/detail; per-approver status (Pendiente / Firmado / Rechazado); global terminal states.
+- Request lifecycle: create/list/detail; per-approver status (PENDING / SIGNED / REJECTED); global terminal states.
 - Approver flow: unique UUID token per approver, simulated email (mock mail), OTP (6-digit, SHA-256, 3-min TTL, 3 attempts).
-- Signature: registered name + timestamp (from User snapshot, not typed at signing); PDF evidence (pdf-lib, 3 signature slots) on 3/3 signed; download endpoint `/api/solicitudes/{id}/evidencia.pdf`.
+- Signature: registered name + timestamp (from User snapshot, not typed at signing); PDF evidence (pdf-lib, 3 signature slots) on 3/3 signed; download endpoint `/api/purchase-requests/{id}/evidence.pdf`.
 - Mock mail: mail events table + `GET /mock-mail` for demo/QA.
 - Frontend: React 18, axios, React Router, webpack 5 Module Federation (host + `solicitante`, `aprobador` remotes).
 - Tests >=60% coverage (backend Jest + dynamodb-local; frontend Jest + RTL); README; Swagger/OpenAPI; deployment URLs.
@@ -20,33 +20,33 @@ Deliver a serverless purchase-approval flow: employees register (name + email + 
 ### Out of Scope
 - Authentication/authorization: email-only identity for the demo (no password); unique link + OTP is the only gate. Real auth (Cognito/JWT) is a future improvement.
 - Handwritten signature images (signature = name + date/time only).
-- Rejection recovery: reassignment/reintento (future improvement only).
+- Rejection recovery: reassignment/retry (future improvement only).
 - Step Functions state machine (documented as evolution option for the completion flow, not built).
 - Mobile: React Native app is a SEPARATE later phase (minimal study: create request + show 3 approval links); NOT part of this change.
 - Real email/SMS OTP delivery.
 
 ## Product Assumptions (authoritative, from question round)
 
-- Roles = cargo: the assignment's "three distinct roles" means three distinct EMPLOYEES (persons) with their cargo. Within a purchase, role is POSITIONAL: `createdBy` = solicitante, `approvers[3]` = aprobadores. Role is derived from structure, not stored as a field on the purchase.
+- Roles = position: the assignment's "three distinct roles" means three distinct EMPLOYEES (persons) with their position. Within a purchase, role is POSITIONAL: `createdBy` = requester, `approvers[3]` = approvers. Role is derived from structure, not stored as a field on the purchase.
 - Signature name comes from the approver's registered User snapshot, not typed at signing time.
 - No auth anywhere; email-only identity. Anyone can register/list; unique link + OTP gates approver actions.
-- Rejection is TERMINAL for the whole request: any single rejection → "Rechazada"; other links become inert ("already rejected").
+- Rejection is TERMINAL for the whole request: any single rejection → "REJECTED"; other links become inert ("already rejected").
 - Signature = name + date/time; PDF generated only when all 3 signed.
-- Global state dominates: Completada (3/3 signed) > Rechazada (any reject) > Pendiente. Link/OTP validation checks global state first; terminal states surfaced in UI.
+- Global state dominates: COMPLETED (3/3 signed) > REJECTED (any reject) > PENDING. Link/OTP validation checks global state first; terminal states surfaced in UI.
 - OTP: 3 failed attempts → token invalidated; expired → "generate new OTP" (simulated re-send via mock mail).
 - Approver screens: (a) OTP entry, (b) detail + Approve/Reject, (c) terminal-state screens.
-- UI status labels follow assignment terms: Pendiente, Firmado, Rechazado, Completada.
+- UI status labels follow assignment terms: PENDING, SIGNED, REJECTED, COMPLETED.
 
 ## Functional Requirements Summary
 
-- FR1 User registry: register/list employees (name, email, cargo); email unique; rejects duplicates and empty cargo.
-- FR2 Create request: requester selects own email (solicitante) + 3 approver emails from registered users; validation: approvers distinct and different from requester email; all must exist in user-registry → Pendiente; token generated per approver.
+- FR1 User registry: register/list employees (name, email, position); email unique; rejects duplicates and empty position.
+- FR2 Create request: requester selects own email (requester) + 3 approver emails from registered users; validation: approvers distinct and different from requester email; all must exist in user-registry → PENDING; token generated per approver.
 - FR3 Mock mail: simulated email with link (UUID token); exposed via `GET /mock-mail`.
 - FR4 OTP: 6-digit, unique per approver, stored SHA-256, valid 3 min (DynamoDB TTL), 3 attempts → invalidate token.
-- FR5 Approve: record signature (registered name + timestamp), status Firmado. Reject: Rechazado (+timestamp).
-- FR6 Global transitions: 3/3 signed → Completada + PDF; any reject → Rechazada (token inert).
-- FR7 PDF: pdf-lib, request data + 3 signature slots; "Solicitante" = `createdBy.name`; saved to S3; `GET /api/solicitudes/{id}/evidencia.pdf`.
-- FR8 Requester panel: list + detail with per-approver status; "Download PDF" when Completada.
+- FR5 Approve: record signature (registered name + timestamp), status SIGNED. Reject: REJECTED (+timestamp).
+- FR6 Global transitions: 3/3 signed → COMPLETED + PDF; any reject → REJECTED (token inert).
+- FR7 PDF: pdf-lib, request data + 3 signature slots; "Requester" = `createdBy.name`; saved to S3; `GET /api/purchase-requests/{id}/evidence.pdf`.
+- FR8 Requester panel: list + detail with per-approver status; "Download PDF" when COMPLETED.
 - FR9 Tests >=60% coverage, thresholds enforced in config.
 
 ## Capabilities
@@ -54,14 +54,14 @@ Deliver a serverless purchase-approval flow: employees register (name + email + 
 > Contract with sdd-spec. `user-registry` is new; the 6 existing specs (`openspec/specs/`) get delta specs for the model/flow changes.
 
 ### New Capabilities
-- `user-registry`: register/list employees (name, email, cargo); `PK=USER#<email>`; email unique natural key.
+- `user-registry`: register/list employees (name, email, position); `PK=USER#<email>`; email unique natural key.
 
 ### Modified Capabilities
 - `purchase-request`: data model (`createdBy`/`approvers` name+email snapshots; approver items `SK=APPR#<email>`); create flow selects registered emails with validation.
 - `approver-otp`: approver keyed by email (`SK=APPR#<email>`); token/OTP per approver email.
 - `approval-signature`: signature name from registered User snapshot, not typed at signing.
-- `pdf-evidence`: "Solicitante" resolved from `createdBy.name`.
-- `requester-panel`: solicitante/approver email selection from registered users list.
+- `pdf-evidence`: "Requester" resolved from `createdBy.name`.
+- `requester-panel`: requester/approver email selection from registered users list.
 - `approver-flow`: approver identity via registered email (no typed name).
 
 ## Approach
@@ -118,7 +118,7 @@ Backend first. Slice 1: domain + application (user-registry, statuses, OTP, sign
 
 ## Success Criteria
 
-- [ ] End-to-end demo: register employees → create → mock mail → OTP → 3 approvals → Completada + PDF download, working locally and on deployed URLs.
+- [ ] End-to-end demo: register employees → create → mock mail → OTP → 3 approvals → COMPLETED + PDF download, working locally and on deployed URLs.
 - [ ] Validation verified: approvers distinct and different from requester; unknown emails rejected.
 - [ ] Terminal states verified: reject blocks other approvers; expired OTP and 3-attempt lockout work.
 - [ ] Backend and frontend suites pass with >=60% coverage.

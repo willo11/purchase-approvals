@@ -51,7 +51,7 @@ export function buildCreateUser(registerUser: RegisterUser) {
       const user = await registerUser.execute({
         name: (body as Record<string, unknown> | null)?.name,
         email: (body as Record<string, unknown> | null)?.email,
-        cargo: (body as Record<string, unknown> | null)?.cargo,
+        position: (body as Record<string, unknown> | null)?.position,
       });
       return json(201, user.toPrimitives());
     } catch (err) {
@@ -81,7 +81,7 @@ export function buildListUsers(listUsers: ListUsers) {
 
 /**
  * Production Lambda handlers wired to the real repository.
- * serverless.yml maps `POST /api/usuarios` → createUser, `GET /api/usuarios` → listUsers.
+ * serverless.yml maps `POST /api/users` → createUser, `GET /api/users` → listUsers.
  */
 const repository = makeUserRepository();
 

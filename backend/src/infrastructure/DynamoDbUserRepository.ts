@@ -47,7 +47,7 @@ export class DynamoDbUserRepository implements UserRepository {
       gsi1sk: createdAt,
       name: primitives.name,
       email,
-      cargo: primitives.cargo,
+      position: primitives.position,
       createdAt,
     };
 
@@ -85,7 +85,7 @@ export class DynamoDbUserRepository implements UserRepository {
         User.create({
           name: item.name,
           email: item.email,
-          cargo: item.cargo ?? undefined,
+          position: item.position ?? undefined,
         })
       ) ?? [];
     return items;

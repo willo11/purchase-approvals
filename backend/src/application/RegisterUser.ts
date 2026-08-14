@@ -4,7 +4,7 @@ import { UserRepository } from './ports/UserRepository';
 export interface RegisterUserCommand {
   name: unknown;
   email: unknown;
-  cargo?: unknown;
+  position?: unknown;
 }
 
 /**
@@ -24,7 +24,7 @@ export class RegisterUser {
     const user = User.create({
       name: command.name,
       email: command.email,
-      cargo: command.cargo,
+      position: command.position,
     });
     await this.repository.save(user);
     return user;

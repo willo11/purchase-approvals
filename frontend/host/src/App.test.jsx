@@ -23,7 +23,7 @@ test('renders the landing page with links to both remotes', () => {
   expect(
     screen.getByRole('heading', { name: /purchase approval flow/i })
   ).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /solicitante/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /requester/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /approver/i })).toBeInTheDocument();
 });
 

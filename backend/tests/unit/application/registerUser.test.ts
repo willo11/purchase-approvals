@@ -10,22 +10,22 @@ describe('RegisterUser use case', () => {
     const user = await useCase.execute({
       name: 'Ana',
       email: 'ana@example.com',
-      cargo: 'Contadora',
+      position: 'Accountant',
     });
 
     expect(user.toPrimitives()).toEqual({
       name: 'Ana',
       email: 'ana@example.com',
-      cargo: 'Contadora',
+      position: 'Accountant',
     });
     expect(repo.count()).toBe(1);
     expect(repo.saveCalls).toBe(1);
   });
 
-  it('applies the default cargo when omitted', async () => {
+  it('applies the default position when omitted', async () => {
     const useCase = new RegisterUser(new FakeUserRepository());
     const user = await useCase.execute({ name: 'Ana', email: 'ana@example.com' });
-    expect(user.getCargo()).toBe('Empleado');
+    expect(user.getPosition()).toBe('Employee');
   });
 
   it('rejects an empty name', async () => {

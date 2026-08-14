@@ -25,7 +25,7 @@ describe('DynamoDbUserRepository', () => {
     client.send.mockResolvedValue({});
     const repo = makeRepo(client);
 
-    await repo.save(User.create({ name: 'Ana', email: 'ana@example.com', cargo: 'Contadora' }));
+    await repo.save(User.create({ name: 'Ana', email: 'ana@example.com', position: 'Accountant' }));
 
     expect(client.send).toHaveBeenCalledTimes(1);
     const [command] = client.send.mock.calls[0];
@@ -38,7 +38,7 @@ describe('DynamoDbUserRepository', () => {
     expect(item.SK).toBe('USER#ana@example.com');
     expect(item.gsi1pk).toBe('USER');
     expect(item.name).toBe('Ana');
-    expect(item.cargo).toBe('Contadora');
+    expect(item.position).toBe('Accountant');
     expect(typeof item.gsi1sk).toBe('string'); // createdAt ISO → creation order
   });
 
@@ -72,8 +72,8 @@ describe('DynamoDbUserRepository', () => {
     const client = fakeClient();
     client.send.mockResolvedValue({
       Items: [
-        { name: 'Ana', email: 'ana@example.com', cargo: 'Contadora' },
-        { name: 'Bob', email: 'bob@example.com', cargo: 'Gerente' },
+        { name: 'Ana', email: 'ana@example.com', position: 'Accountant' },
+        { name: 'Bob', email: 'bob@example.com', position: 'Manager' },
       ],
     });
     const repo = makeRepo(client);

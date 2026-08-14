@@ -2,13 +2,13 @@
 
 > Study material for the technical interview. Each entry captures a real tradeoff
 > discussed during development: the question, the options, what we chose, why,
-> and what to say when defending it ("sustentar").
+> and what to say when defending it.
 > New entries get appended as decisions are made.
 
 ---
 
 ## 1. Micro-frontends via webpack Module Federation vs single React app
-- **Tradeoff**: the assignment explicitly asks for "Micros Front-End: con webpack"; a single app is simpler but doesn't demonstrate the pattern.
+- **Tradeoff**: the assignment explicitly asks for micro front-ends with webpack; a single app is simpler but doesn't demonstrate the pattern.
 - **Decision**: Host app + 2 remotes (solicitante, aprobador) with webpack Module Federation.
 - **Why**: the domain splits naturally by user role / bounded context — the requester world (create/list/detail/PDF) and the approver world (OTP + decide) have different lifecycles. Each remote has its own build, tests (>=60%), and deploy.
 - **Costs**: 3 builds instead of 1, more local-dev complexity, more config surface — overkill for the app size, justified by the requirement and by demonstrating the pattern.
@@ -28,7 +28,7 @@
 
 ## 4. axios vs fetch
 - **Tradeoff**: fetch is native; axios adds interceptors and cleaner error handling.
-- **Decision**: axios (allowed by the assignment: "axios o fetch").
+- **Decision**: axios (allowed by the assignment: "axios or fetch").
 - **Why**: consistent error handling and interceptors (e.g., attaching the API base URL) with minimal cost.
 
 ## 5. Deploy: S3 + CloudFront vs Vercel/Netlify

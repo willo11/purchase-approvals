@@ -2,7 +2,7 @@
 
 > Study material for the technical interview. Each entry captures a real tradeoff
 > discussed during development: the question, the options, what we chose, why,
-> and what to say when defending it ("sustentar").
+> and what to say when defending it.
 > New entries get appended as decisions are made.
 
 ---
@@ -24,7 +24,7 @@
 ## 3. Denormalization / snapshots
 - **Tradeoff**: repeating data (snapshots) vs normalizing references and paying N+1 reads.
 - **Decision**: purchase stores `createdBy: {email, name}` and each approver `{email, name}` as a snapshot; signatures store the user's registered name.
-- **Why**: no joins in DynamoDB; historical evidence (PDF) must not break if a user changes name/cargo later.
+- **Why**: no joins in DynamoDB; historical evidence (PDF) must not break if a user changes name/position later.
 - **Interview line**: "Snapshots are deliberate: evidence must be immutable even if identity data changes. That's the NoSQL tradeoff — duplicated data for query speed and integrity."
 
 ## 4. DynamoDB TTL for OTP expiry
@@ -45,7 +45,7 @@
 ## 6. Plain Lambdas vs Step Functions
 - **Tradeoff**: simplicity vs orchestration/retry/visibility for multi-step flows.
 - **Decision**: Plain Lambda handlers per endpoint; one function per use case.
-- **Why**: the flow fits in a few handlers; the "3rd signature → generate PDF → Completada" step is a condition inside the sign handler; SFN would add deploy complexity for a take-home.
+- **Why**: the flow fits in a few handlers; the "3rd signature → generate PDF → COMPLETED" step is a condition inside the sign handler; SFN would add deploy complexity for a take-home.
 - **Documented evolution**: a Step Functions state machine could wrap the completion flow for retries and observability.
 
 ## 7. PDF library: pdf-lib vs pdfmake vs pdfkit
@@ -60,11 +60,11 @@
 - **Why**: separation of responsibilities (explicit requirement), test the heart of the flow without AWS; handlers are thin adapters.
 - **Interview line**: "The domain has no idea AWS exists. Every framework/cloud concern is an adapter behind a port — that's what makes the core unit-testable."
 
-## 9. User model: employees, cargo as role, email as key
+## 9. User model: employees, position as role, email as key
 - **Tradeoff**: interpreting the assignment's "three distinct roles" as persons vs abstract roles.
-- **Decision**: `User` entity = company employee (`name`, `email` PK, `cargo`). Within a purchase, role is POSITIONAL: `createdBy` = solicitante, `approvers[3]` = aprobadores.
+- **Decision**: `User` entity = company employee (`name`, `email` PK, `position`). Within a purchase, role is POSITIONAL: `createdBy` = requester, `approvers[3]` = approvers.
 - **Why**: a personal signature needs a real identity; "roles" in the purchase are derived from structure, not stored.
-- **Interview line**: "The role is not a field on the purchase — it's derived from where the user is referenced (requester vs approver). The cargo field on the employee gives the three distinct roles the brief asks for."
+- **Interview line**: "The role is not a field on the purchase — it's derived from where the user is referenced (requester vs approver). The position field on the employee gives the three distinct roles the brief asks for."
 
 ## 10. Email-only identity + auth disclaimer
 - **Tradeoff**: real authentication (Cognito/JWT) vs minimal demo identity.
@@ -84,8 +84,8 @@
 
 ## 13. Concurrency: single CAS lock on the REQUEST item
 - **Tradeoff**: naive read-then-write can double-complete or let approve-vs-reject race; needs atomicity across two Lambdas.
-- **Decision**: the REQUEST item is the concurrency owner. Every global transition `Pendiente → Completada|Rechazada` is a conditional `UpdateItem` (compare-and-swap): complete gated by `attribute_not_exists(completedAt)`, reject by `status = Pendiente AND attribute_not_exists(rejectedAt)`. PDF generation is idempotent via an existence key (`attribute_not_exists(evidenceKey)`) and a deterministic S3 key. DynamoDB serializes conditional writes on a single item, so exactly one outcome wins.
-- **Why**: no distributed lock needed — DynamoDB CAS gives atomic transition for free; guarantees Completada/Rechazada fire at most once even with concurrent signatures.
+- **Decision**: the REQUEST item is the concurrency owner. Every global transition `PENDING → COMPLETED|REJECTED` is a conditional `UpdateItem` (compare-and-swap): complete gated by `attribute_not_exists(completedAt)`, reject by `status = PENDING AND attribute_not_exists(rejectedAt)`. PDF generation is idempotent via an existence key (`attribute_not_exists(evidenceKey)`) and a deterministic S3 key. DynamoDB serializes conditional writes on a single item, so exactly one outcome wins.
+- **Why**: no distributed lock needed — DynamoDB CAS gives atomic transition for free; guarantees COMPLETED/REJECTED fire at most once even with concurrent signatures.
 - **Interview note**: "The request item is the lock. Conditional expressions make approve-vs-reject atomic — I never read-then-write without a compare-and-swap guard."
 
 ## 14. OTP design
@@ -99,10 +99,10 @@
 - **Gotcha (pv11)**: pnpm ignores dependency build scripts by default and **fails with exit 1 (ERR_PNPM_IGNORED_BUILDS)** until you allow them. The setting lives in `pnpm-workspace.yaml` (`allowBuilds:` map), NOT in package.json — that is a v11 breaking change. Backend needed `allowBuilds: { serverless: true, aws-sdk: true, es5-ext: true }`.
 - **Interview line**: "pnpm v11 gates postinstall scripts by default; I allowed only the ones that need to build (Serverless Framework) in pnpm-workspace.yaml."
 
-## 16. User registry: email as PK, optional cargo with default, no-password
+## 16. User registry: email as PK, optional position with default, no-password
 - **Tradeoff**: what identifies a user unambiguously; whether job position is required; how much auth to ship for the demo.
-- **Decision**: `email` is the natural key (`USER#<email>`); `cargo` is optional and defaults to `Empleado`; no password is accepted or stored.
-- **Why**: email is inherently unique and re-verified by `Email` format validation; the brief lists three roles but they are positional (Decision 9), so `cargo` needs no required enum — a default keeps the payload ergonomic; email-only identity (Decision 10) keeps the demo deliverable and documents auth as out of scope.
+- **Decision**: `email` is the natural key (`USER#<email>`); `position` is optional and defaults to `Employee`; no password is accepted or stored.
+- **Why**: email is inherently unique and re-verified by `Email` format validation; the brief lists three roles but they are positional (Decision 9), so `position` needs no required enum — a default keeps the payload ergonomic; email-only identity (Decision 10) keeps the demo deliverable and documents auth as out of scope.
 - **Duplicate prevention**: enforced by the database, not application memory — the repository `PutItem` uses `ConditionExpression: attribute_not_exists(PK)`, so a concurrent or double registration maps to 409 with zero chance of overwrite.
 - **Interview line**: "The natural key is the email and the uniqueness constraint lives in a conditional PutItem — I never read-then-write to check for duplicates; DynamoDB does that atomically."
 
@@ -115,19 +115,19 @@
 
 | Pattern | Role in the code | File | Interview one-liner |
 |---------|------------------|------|--------------------|
-| **Repository (port)** | Abstrae el acceso a datos: el caso de uso habla con una interfaz, no con DynamoDB | `application/ports/UserRepository.ts` | "The use case depends on a contract (port), not on DynamoDB — the storage engine is swappable." |
-| **Adapter** | Traduce el contrato al mundo exterior real; la única capa que sabe `@aws-sdk` | `infrastructure/DynamoDbUserRepository.ts` | "The adapter is the translator: the domain speaks its own language, only the adapter speaks DynamoDB." |
-| **Ports & Adapters / Hexagonal** | El dominio en el centro (pura lógica), los adaptadores afuera para infraestructura | layering global (domain/application/infrastructure/api) | "The hexagon is the domain; I can swap the database without the core noticing." |
-| **Entity** | Objeto con identidad propia, identificado por su email | `domain/User.ts` | User is identified by identity (its email), not by its attributes." |
-| **Value Object** | Objeto inmutable que se valida solo y se compara por valor; normaliza `ANA@` → `ana@` | `domain/values/Email.ts` | "Email is a value object: it carries its own validation and normalization, so an invalid format can't exist." |
-| **Application Service / Use Case** | Orquesta UNA tarea de negocio sin saber "cómo" | `application/RegisterUser.ts` | "The use case holds the business rule (duplicate→409) and ignores the technology (DynamoDB)." |
-| **Factory (composition root)** | Construye el adapter y sus dependencias | `makeUserRepository()` | "makeUserRepository is the composition root — the only place that wires the adapter from the environment." |
-| **Dependency Injection** | El handler recibe el adapter ya armado | `constructor(private readonly env)` | "Dependencies are injected, not imported — that's what lets tests swap a fake repository." |
-| **Mapper (error → HTTP)** | Traduce errores tipados del dominio a códigos HTTP de forma declarativa | handler `userRegistry.ts` + tabla de `design-api.md` | "The handler is a thin error→HTTP mapper; it never embeds business rules or status-code if/else." |
+| **Repository (port)** | Abstracts data access: the use case talks to an interface, not to DynamoDB | `application/ports/UserRepository.ts` | "The use case depends on a contract (port), not on DynamoDB — the storage engine is swappable." |
+| **Adapter** | Translates the contract to the real external world; the only layer that knows `@aws-sdk` | `infrastructure/DynamoDbUserRepository.ts` | "The adapter is the translator: the domain speaks its own language, only the adapter speaks DynamoDB." |
+| **Ports & Adapters / Hexagonal** | The domain at the center (pure logic), the adapters outside for infrastructure | layering global (domain/application/infrastructure/api) | "The hexagon is the domain; I can swap the database without the core noticing." |
+| **Entity** | Object with its own identity, identified by its email | `domain/User.ts` | User is identified by identity (its email), not by its attributes." |
+| **Value Object** | Immutable object that validates itself and compares by value; normalizes `ANA@` → `ana@` | `domain/values/Email.ts` | "Email is a value object: it carries its own validation and normalization, so an invalid format can't exist." |
+| **Application Service / Use Case** | Orchestrates ONE business task without knowing "how" | `application/RegisterUser.ts` | "The use case holds the business rule (duplicate→409) and ignores the technology (DynamoDB)." |
+| **Factory (composition root)** | Builds the adapter and its dependencies | `makeUserRepository()` | "makeUserRepository is the composition root — the only place that wires the adapter from the environment." |
+| **Dependency Injection** | The handler receives the already-built adapter | `constructor(private readonly env)` | "Dependencies are injected, not imported — that's what lets tests swap a fake repository." |
+| **Mapper (error → HTTP)** | Translates typed domain errors to HTTP codes declaratively | handler `userRegistry.ts` + `design-api.md` table | "The handler is a thin error→HTTP mapper; it never embeds business rules or status-code if/else." |
 
 **The phrase that carries the whole argument** — why layers at all:
 
-> "The core changes when the BUSINESS changes; the adapter changes when the PROVIER
+> "The core changes when the BUSINESS changes; the adapter changes when the PROVIDER
 > changes (DynamoDB); the handler changes when the HTTP CONTRACT changes. If I mixed all
 > three, any change would force me to touch storage + business + HTTP at once. Separated,
 > each layer is unit-testable on its own."

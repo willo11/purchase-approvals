@@ -2,7 +2,7 @@
 
 ## Technical Approach
 
-Serverless backend (Node.js + TypeScript, Clean Architecture) over a single-table DynamoDB, plus a micro-frontend host with two remotes (`solicitante`, `aprobador`) via webpack 5 Module Federation. The flow is: register users → requester creates a request (3 approvers) → per-approver UUID token + OTP gate → each approver signs/rejects against registered-name snapshots → 3/3 approves atomically completes the request and triggers PDF evidence (pdf-lib → S3) → download endpoint. Terminal global states (`Completada` > `Rechazada` > `Pendiente`) dominate all gates. Capabilities map to 7 chained PRs; each is independently implementable/testable because modules sit in distinct application/handler modules with mocked ports at unit level and real adapters at integration level.
+Serverless backend (Node.js + TypeScript, Clean Architecture) over a single-table DynamoDB, plus a micro-frontend host with two remotes (`solicitante`, `aprobador`) via webpack 5 Module Federation. The flow is: register users → requester creates a request (3 approvers) → per-approver UUID token + OTP gate → each approver signs/rejects against registered-name snapshots → 3/3 approves atomically completes the request and triggers PDF evidence (pdf-lib → S3) → download endpoint. Terminal global states (`COMPLETED` > `REJECTED` > `PENDING`) dominate all gates. Capabilities map to 7 chained PRs; each is independently implementable/testable because modules sit in distinct application/handler modules with mocked ports at unit level and real adapters at integration level.
 
 Reference specs: `openspec/specs/{user-registry,purchase-request,approver-otp,approval-signature,pdf-evidence,requester-panel,approver-flow}/spec.md`. Decisions log conventions: `backend/DECISIONS.md`, `frontend/DECISIONS.md`.
 
@@ -10,15 +10,15 @@ Reference specs: `openspec/specs/{user-registry,purchase-request,approver-otp,ap
 
 ### Decision: Concurrency owner — conditional writes on the REQUEST item (the global-state holder)
 
-**Choice**: The REQUEST item is the single lock/state owner. Every state transition that changes global status (`Pendiente → Completada | Rechazada`) is a **conditional UpdateItem on the REQUEST item keyed by `attribute_exists`/expected-status**, not on approver items or derived data. Per-approver writes (`Firmado`/`Rechazado`) happen first on the approver item with their own condition, then the global transition is a CAS on the REQUEST.
+**Choice**: The REQUEST item is the single lock/state owner. Every state transition that changes global status (`PENDING → COMPLETED | REJECTED`) is a **conditional UpdateItem on the REQUEST item keyed by `attribute_exists`/expected-status**, not on approver items or derived data. Per-approver writes (`SIGNED`/`REJECTED`) happen first on the approver item with their own condition, then the global transition is a CAS on the REQUEST.
 
-**Alternatives considered**: (a) A transaction (`TransactWriteItems`) over request + approver — more atomic but couples both records and raises throttling; (b) read-check-then-write in application memory — NOT atomic across Lambda invocations; (c) derive a `Completada` decision by storing an `approvalCount` on the request and letting any approver CAS it — adds a counter that is itself racy.
+**Alternatives considered**: (a) A transaction (`TransactWriteItems`) over request + approver — more atomic but couples both records and raises throttling; (b) read-check-then-write in application memory — NOT atomic across Lambda invocations; (c) derive a `COMPLETED` decision by storing an `approvalCount` on the request and letting any approver CAS it — adds a counter that is itself racy.
 
-**Rationale**: Put the rule that must hold exactly once (`Completada` issued once, `Rechazada` once, approve-vs-reject single winner) on ONE item and enforce it with a conditional expression the database checks atomically. This is the interview-core point: DynamoDB `UpdateItem` with `ConditionExpression` is a compare-and-swap that DynamoDB guarantees is atomic; two concurrent writers cannot both pass a condition that requires the pre-state `Pendiente`.
+**Rationale**: Put the rule that must hold exactly once (`COMPLETED` issued once, `REJECTED` once, approve-vs-reject single winner) on ONE item and enforce it with a conditional expression the database checks atomically. This is the interview-core point: DynamoDB `UpdateItem` with `ConditionExpression` is a compare-and-swap that DynamoDB guarantees is atomic; two concurrent writers cannot both pass a condition that requires the pre-state `PENDING`.
 
 **Exact strategy** (detail: `design-concurrency.md`):
-- Approve: `UpdateItem PK=REQ#<id> SK=APPR#<email>` with `ConditionExpression: attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)`, `SET status_signed = :now` (records name+timestamp). Then a **completion check** `UpdateItem PK=REQ#<id> SK=REQ#<id>` with `ConditionExpression: attribute_not_exists(completedAt)`, `SET completedAt = :now, status = 'Completada'`, then **read the approver set** to confirm 3 signed; if confirmed, `attribute_not_exists(evidenceKey)` guards PDF generation.
-- Reject: `UpdateItem` on approver item `attribute_not_exists(status_signed)`, `SET status_rejected = :now`; then REQUEST item `UpdateItem` with `ConditionExpression: status = 'Pendiente' AND attribute_not_exists(rejectedAt)`, `SET status = 'Rechazada'`. Because reject is terminal and dominant over pending-but-not-finalized, the condition `status = 'Pendiente'` makes only the FIRST reject win; a concurrent approve that already CAS'd `Completada` makes the reject condition fail.
+- Approve: `UpdateItem PK=REQ#<id> SK=APPR#<email>` with `ConditionExpression: attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)`, `SET status_signed = :now` (records name+timestamp). Then a **completion check** `UpdateItem PK=REQ#<id> SK=REQ#<id>` with `ConditionExpression: attribute_not_exists(completedAt)`, `SET completedAt = :now, status = 'COMPLETED'`, then **read the approver set** to confirm 3 signed; if confirmed, `attribute_not_exists(evidenceKey)` guards PDF generation.
+- Reject: `UpdateItem` on approver item `attribute_not_exists(status_signed)`, `SET status_rejected = :now`; then REQUEST item `UpdateItem` with `ConditionExpression: status = 'PENDING' AND attribute_not_exists(rejectedAt)`, `SET status = 'REJECTED'`. Because reject is terminal and dominant over pending-but-not-finalized, the condition `status = 'PENDING'` makes only the FIRST reject win; a concurrent approve that already CAS'd `COMPLETED` makes the reject condition fail.
 
 > Interview flag: Two concurrent writers both pass their per-approver condition (different approvers) but the REQUEST-level CAS is exclusive. Exactly one transitions global state; the loser receives a conditional-check failure and is mapped to a "terminal already resolved" 409/410.
 
@@ -40,13 +40,13 @@ Reference specs: `openspec/specs/{user-registry,purchase-request,approver-otp,ap
 
 **Rationale**: The association problem is solved with a `gs1` (GSI) secondary index for list ordering; the OTP is a pure TTL-scoped value object that should be garbage-collected without touching durable state. Expiry is ALSO validated in code (`otpExpiresAt < now`) because TTL deletion is asynchronous — matches spec R4.
 
-### Decision: Reject vs Completada winner + idempotent PDF timeout
+### Decision: Reject vs COMPLETED winner + idempotent PDF timeout
 
 **Choice**: PDF generation keyed by `completedAt` existence; the completion CAS sets `completedAt` and immediately the SAME handler calls `GENERATE_AND_PUT_PDF` guarded by `attribute_not_exists(evidenceKey)`.
 
 **Alternatives considered**: separate Lambda triggered by DynamoDB stream (extra moving part + async gap), retry loop.
 
-**Rationale**: R3 "3rd signature triggers PDF" = the handler that legally transitions `Pendiente→Completada` also generates the PDF. Idempotency: `evidenceKey` is deterministic `reqs/{id}/evidencia.pdf` and S3 `PutObject` overwrite is harmless; the conditional `attribute_not_exists(evidenceKey)` prevents a doubled generation even on redelivery.
+**Rationale**: R3 "3rd signature triggers PDF" = the handler that legally transitions `PENDING→COMPLETED` also generates the PDF. Idempotency: `evidenceKey` is deterministic `reqs/{id}/evidence.pdf` and S3 `PutObject` overwrite is harmless; the conditional `attribute_not_exists(evidenceKey)` prevents a doubled generation even on redelivery.
 
 ### Decision: pdf-lib with standard fonts (no embedding)
 
@@ -67,20 +67,20 @@ Reference specs: `openspec/specs/{user-registry,purchase-request,approver-otp,ap
 ## Data Flow
 
 ```
-POST /api/solicitudes
+POST /api/purchase-requests
   → CreateRequest UC (validate approvers ↔ registry, snapshots)
-  → PutItem REQ (Pendiente)  ─────▶ PutItem APPR#a, APPR#b, APPR#c (tokens)
+  → PutItem REQ (PENDING)  ─────▶ PutItem APPR#a, APPR#b, APPR#c (tokens)
   → PutItem OTP items + mail events ─▶ GET /mock-mail reads MAIL type
 
 POST /approvals/{id}/token/{token}/otp
   → GateChain (terminal? lockout? token?) → PutItem OTP (hash, TTL)
 POST .../validate → GateChain → conditional approver update (attempts++) → ok?
 POST .../approve
-  → REQ CAS (Pendiente→Completada w/ 3-signed confirmation)
+  → REQ CAS (PENDING→COMPLETED w/ 3-signed confirmation)
       └─▶ PDF gen (pdf-lib) → S3 PutObject(evidenceKey)
   → approver item: status_signed = now
 POST .../reject
-  → REQ CAS (status = Pendiente → Rechazada)  [only first wins]
+  → REQ CAS (status = PENDING → REJECTED)  [only first wins]
   → approver item: status_rejected = now
 ```
 
@@ -88,20 +88,20 @@ POST .../reject
 
 | Method | Path | Request | Response | Errors |
 |---|---|---|---|---|
-| POST | /api/usuarios | {name,email,cargo?} | 201 User | 400, 409 |
-| GET | /api/usuarios | — | 200 User[] | — |
-| POST | /api/solicitudes | {title,description,amount,requesterEmail,approverEmails[3]} | 201 Request | 400 (unknown/dup/self, amount), 404 registry |
-| GET | /api/solicitudes | — | 200 RequestSummary[] | — |
-| GET | /api/solicitudes/{id} | — | 200 RequestDetail | 404 |
+| POST | /api/users | {name,email,position?} | 201 User | 400, 409 |
+| GET | /api/users | — | 200 User[] | — |
+| POST | /api/purchase-requests | {title,description,amount,requesterEmail,approverEmails[3]} | 201 Request | 400 (unknown/dup/self, amount), 404 registry |
+| GET | /api/purchase-requests | — | 200 RequestSummary[] | — |
+| GET | /api/purchase-requests/{id} | — | 200 RequestDetail | 404 |
 | POST | /api/approvals/{id}/token/{token}/otp | — | 201 {expiresInSeconds} | 404, 410 terminal |
 | POST | /api/approvals/{id}/token/{token}/otp/validate | {code} | 200 {valid:true} | 400 invalid, 401 wrong{attemptsRemaining}, 403 lockout, 410 terminal |
 | POST | /api/approvals/{id}/token/{token}/otp/regenerate | — | 201 {expiresInSeconds} | 403 lockout, 410 terminal |
 | POST | /api/approvals/{id}/token/{token}/approve | — | 201 RequestDetail | 404, 401, 409 dup, 410 terminal |
 | POST | /api/approvals/{id}/token/{token}/reject | — | 201 RequestDetail | 404, 401, 409 dup, 410 terminal |
-| GET | /api/solicitudes/{id}/evidencia.pdf | — | 200 application/pdf | 404 (not existing/not completed) |
+| GET | /api/purchase-requests/{id}/evidence.pdf | — | 200 application/pdf | 404 (not existing/not completed) |
 | GET | /mock-mail | — | 200 MailEvent[] | — |
 
-Every frontend screen maps to these (full table in `design-api.md`): solicitante list→GET /api/solicitudes; create form→GET /api/usuarios then POST /api/solicitudes; detail→GET /api/solicitudes/{id}; PDF button→GET evidencia.pdf; aprobador gate→ POST otp → validate → approve/reject.
+Every frontend screen maps to these (full table in `design-api.md`): requester list→GET /api/purchase-requests; create form→GET /api/users then POST /api/purchase-requests; detail→GET /api/purchase-requests/{id}; PDF button→GET evidence.pdf; approver gate→ POST otp → validate → approve/reject.
 
 ## File Changes
 
@@ -121,7 +121,7 @@ Every frontend screen maps to these (full table in `design-api.md`): solicitante
 | Layer | What to Test | Approach |
 |-------|-------------|----------|
 | Unit (per capability PR) | Use-cases + domain rules (validation, snapshots, gate precedence, terminality, OTP hash/expiry/lockout) | Jest with injected in-memory fake ports; assert conditional writes emitted with expected ConditionExpression |
-| Integration (dynamodb-local) | Concurrency: approve/reject, 3rd-signature single `Completada`, single PDF | Real repos against dockerized DynamoDB, Promise.all of two writes, assert one `completedAt` |
+| Integration (dynamodb-local) | Concurrency: approve/reject, 3rd-signature single `COMPLETED`, single PDF | Real repos against dockerized DynamoDB, Promise.all of two writes, assert one `completedAt` |
 | API handler | HTTP status mapping (409/401/410/404) | supertest against handler adapters with stub ports |
 | Frontend (Jest + RTL) | Per remote component (list, form, OTP, approve/reject) + service mappers | Mocked axios; assert render + error surfacing |
 | Coverage | >=60% enforced | `coverageThreshold` in jest config (backend + each remote) |

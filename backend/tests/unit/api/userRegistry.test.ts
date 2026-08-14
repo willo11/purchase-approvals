@@ -22,28 +22,28 @@ function throwingRepo(): UserRepository {
   };
 }
 
-describe('createUser handler (POST /api/usuarios)', () => {
+describe('createUser handler (POST /api/users)', () => {
   it('returns 201 with the created user (r1 successful registration)', async () => {
     const repo = new FakeUserRepository();
     const handler = buildCreateUser(new RegisterUser(repo));
 
-    const response = await handler(postEvent({ name: 'Ana', email: 'ana@example.com', cargo: 'Contadora' }));
+    const response = await handler(postEvent({ name: 'Ana', email: 'ana@example.com', position: 'Accountant' }));
 
     expect(response.statusCode).toBe(201);
     expect(JSON.parse(response.body)).toEqual({
       name: 'Ana',
       email: 'ana@example.com',
-      cargo: 'Contadora',
+      position: 'Accountant',
     });
   });
 
-  it('returns 201 applying the default cargo when omitted (cargo optional)', async () => {
+  it('returns 201 applying the default position when omitted (position optional)', async () => {
     const handler = buildCreateUser(new RegisterUser(new FakeUserRepository()));
 
     const response = await handler(postEvent({ name: 'Ana', email: 'ana@example.com' }));
 
     expect(response.statusCode).toBe(201);
-    expect(JSON.parse(response.body).cargo).toBe('Empleado');
+    expect(JSON.parse(response.body).position).toBe('Employee');
   });
 
   it('returns 409 on a duplicate email and does not persist', async () => {
@@ -105,12 +105,12 @@ describe('createUser handler (POST /api/usuarios)', () => {
     expect(JSON.parse(response.body)).toEqual({
       name: 'Ana',
       email: 'ana@example.com',
-      cargo: 'Empleado',
+      position: 'Employee',
     });
   });
 });
 
-describe('listUsers handler (GET /api/usuarios)', () => {
+describe('listUsers handler (GET /api/users)', () => {
   it('returns 200 with an empty array when the registry is empty (r2 empty registry)', async () => {
     const handler = buildListUsers(new ListUsers(new FakeUserRepository()));
 
@@ -123,7 +123,7 @@ describe('listUsers handler (GET /api/usuarios)', () => {
   it('returns 200 with all users in creation order (r2 listing)', async () => {
     const repo = new FakeUserRepository().seed(
       User.create({ name: 'Ana', email: 'ana@example.com' }),
-      User.create({ name: 'Bob', email: 'bob@example.com', cargo: 'Gerente' })
+      User.create({ name: 'Bob', email: 'bob@example.com', position: 'Manager' })
     );
     const handler = buildListUsers(new ListUsers(repo));
 
@@ -131,8 +131,8 @@ describe('listUsers handler (GET /api/usuarios)', () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual([
-      { name: 'Ana', email: 'ana@example.com', cargo: 'Empleado' },
-      { name: 'Bob', email: 'bob@example.com', cargo: 'Gerente' },
+      { name: 'Ana', email: 'ana@example.com', position: 'Employee' },
+      { name: 'Bob', email: 'bob@example.com', position: 'Manager' },
     ]);
   });
 

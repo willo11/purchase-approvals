@@ -4,8 +4,8 @@ Base path from API Gateway. JSON requests/responses unless noted.
 
 ## Common shapes
 
-- `User { name: string; email: string; cargo?: string; }`
-- `ApproverView { email; name; status: 'Pendiente'|'Firmado'|'Rechazado'; signedAt?: string; rejectedAt?: string }`
+- `User { name: string; email: string; position?: string; }`
+- `ApproverView { email; name; status: 'PENDING'|'SIGNED'|'REJECTED'; signedAt?: string; rejectedAt?: string }`
 - `RequestSummary { id; title; amount; currency:'USD'; status; createdAt }`
 - `RequestDetail extends RequestSummary { description; createdBy:{email,name}; approvers: ApproverView[3]; excluded; evidenceUrl?: string; rejectedBy?: string }`
 - `Error { error: string; message: string }`
@@ -20,23 +20,23 @@ Base path from API Gateway. JSON requests/responses unless noted.
 | Unknown/expired token | 404 |
 | Wrong OTP | 401 (payload `{attemptsRemaining}`) |
 | Lockout / wrong-token condition | 403 |
-| Terminal global state (Completada/Rechazada), expired allowed regenerate | 410 |
+| Terminal global state (COMPLETED/REJECTED), expired allowed regenerate | 410 |
 
 ## Endpoints (complete)
 
 ### users
 | # | Method Path | Request | Success | Errors |
 |---|---|---|---|---|
-| 1 | POST /api/usuarios | {name,email,cargo?} | 201 `User` | 400, 409 |
-| 2 | GET /api/usuarios | — | 200 `User[]` (creation order) | — |
+| 1 | POST /api/users | {name,email,position?} | 201 `User` | 400, 409 |
+| 2 | GET /api/users | — | 200 `User[]` (creation order) | — |
 
 ### requests
 | # | Method Path | Request | Success | Errors |
 |---|---|---|---|---|
-| 3 | POST /api/solicitudes | {title,description,amount,requesterEmail,approverEmails[3]} | 201 `RequestDetail` | 400, 404 (unknown registry emails) |
-| 4 | GET /api/solicitudes | — | 200 `RequestSummary[]` newest first | — |
-| 5 | GET /api/solicitudes/{id} | — | 200 `RequestDetail` | 404 |
-| 6 | GET /api/solicitudes/{id}/evidencia.pdf | — | 200 binary `application/pdf` | 404 |
+| 3 | POST /api/purchase-requests | {title,description,amount,requesterEmail,approverEmails[3]} | 201 `RequestDetail` | 400, 404 (unknown registry emails) |
+| 4 | GET /api/purchase-requests | — | 200 `RequestSummary[]` newest first | — |
+| 5 | GET /api/purchase-requests/{id} | — | 200 `RequestDetail` | 404 |
+| 6 | GET /api/purchase-requests/{id}/evidence.pdf | — | 200 binary `application/pdf` | 404 |
 
 ### approver OTP flow (gate = token resolves + terminality)
 All under `/api/approvals/{requestId}/token/{token}`.
@@ -57,7 +57,7 @@ All under `/api/approvals/{requestId}/token/{token}`.
 |---|---|---|---|---|
 | 12 | GET /mock-mail | — | 200 `MailEvent[]` newest first | — |
 
-`MailEvent { id; to; type:'APPROVAL_LINK'|'OTP'; subject; body; link?; otpPlain?; createdAt }` — `otpPlain` is included ONLY in the simulated mail for demo/QA (never stored hashed; mock discloses for the reviewer to drive the flow). Link form: `https://<host>/approve?solicitud_id=<id>&approver_token=<uuid>`.
+`MailEvent { id; to; type:'APPROVAL_LINK'|'OTP'; subject; body; link?; otpPlain?; createdAt }` — `otpPlain` is included ONLY in the simulated mail for demo/QA (never stored hashed; mock discloses for the reviewer to drive the flow). Link form: `https://<host>/approve?request_id=<id>&approver_token=<uuid>`.
 
 ## Frontend → backend mapping (no orphan calls)
 
@@ -67,13 +67,13 @@ All under `/api/approvals/{requestId}/token/{token}`.
 ### `solicitante` remote — routes `/solicitante`, `/solicitante/nueva`, `/solicitante/:id`
 | Screen / action | Endpoint |
 |---|---|
-| Load list | #4 GET /api/solicitudes |
-| Open create form (user selectors) | #2 GET /api/usuarios |
-| Submit create | #3 POST /api/solicitudes |
-| Load detail + approver table | #5 GET /api/solicitudes/{id} |
-| Download PDF button (only if `status=Completada`) | #6 GET /api/solicitudes/{id}/evidencia.pdf (blob download) |
+| Load list | #4 GET /api/purchase-requests |
+| Open create form (user selectors) | #2 GET /api/users |
+| Submit create | #3 POST /api/purchase-requests |
+| Load detail + approver table | #5 GET /api/purchase-requests/{id} |
+| Download PDF button (only if `status=COMPLETED`) | #6 GET /api/purchase-requests/{id}/evidence.pdf (blob download) |
 
-### `aprobador` remote — route `/approve?solicitud_id=..&approver_token=..`
+### `aprobador` remote — route `/approve?request_id=..&approver_token=..`
 | Screen / action | Endpoint |
 |---|---|
 | Resolve link → gate (terminal? lockout? prompt for OTP?) | #7 POST .../otp (terminal 410 / lockout 403 / issues OTP) |

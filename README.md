@@ -4,7 +4,7 @@ Serverless purchase-approval flow with concatenated digital signatures (web
 client). Employees register; a requester creates purchase requests with 3
 approvers; each approver signs or rejects behind a unique link + time-limited
 OTP; when all 3 sign, the backend generates PDF evidence and the request
-becomes **Completada**.
+becomes **COMPLETED**.
 
 > Skeleton documentation — final polish (assumptions, auth disclaimer, run
 > walkthrough, deployment URLs) lands in PR #8 (Release & Docs).
@@ -23,7 +23,7 @@ becomes **Completada**.
 
 - **Serverless backend**: one Lambda handler per endpoint over a single-table
   DynamoDB. The REQUEST item is the concurrency owner: global transitions
-  (`Pendiente → Completada | Rechazada`) are atomic conditional writes
+  (`PENDING → COMPLETED | REJECTED`) are atomic conditional writes
   (compare-and-swap). See `openspec/changes/purchase-approval-flow/design.md`.
 - **Micro-frontends**: the host owns the shell + routing chassis and lazy-loads
   the remotes via `React.lazy`/`Suspense`; each remote is independently built,

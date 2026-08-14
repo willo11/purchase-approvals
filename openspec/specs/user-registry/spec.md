@@ -12,47 +12,47 @@ Auth note: identity is email-only for the demo. No password is stored. Authentic
 
 ### R1. Register employee
 
-The system MUST register an employee via `POST /api/usuarios` with: name (non-empty string), email (valid format, unique natural key), and cargo (job position, optional string with a default when omitted). A valid registration MUST persist the user keyed by email and return the created user. An email that already exists MUST return HTTP 409. A payload with an empty name or an invalid email format MUST return HTTP 400. No password is accepted or stored.
+The system MUST register an employee via `POST /api/users` with: name (non-empty string), email (valid format, unique natural key), and position (job position, optional string with a default when omitted). A valid registration MUST persist the user keyed by email and return the created user. An email that already exists MUST return HTTP 409. A payload with an empty name or an invalid email format MUST return HTTP 400. No password is accepted or stored.
 
 #### Scenario: Successful registration
 
-- GIVEN a payload with a valid name, email, and cargo
-- WHEN `POST /api/usuarios` is called
-- THEN HTTP 201 returns the user with name, email, and cargo
+- GIVEN a payload with a valid name, email, and position
+- WHEN `POST /api/users` is called
+- THEN HTTP 201 returns the user with name, email, and position
 - AND the user is persisted under the email key
 
 #### Scenario: Duplicate email rejected
 
 - GIVEN a user with email ana@example.com already registered
-- WHEN `POST /api/usuarios` is called with the same email
+- WHEN `POST /api/users` is called with the same email
 - THEN HTTP 409 is returned
 - AND no duplicate user is persisted
 
 #### Scenario: Invalid email rejected
 
 - GIVEN a payload whose email is not a valid email format
-- WHEN `POST /api/usuarios` is called
+- WHEN `POST /api/users` is called
 - THEN HTTP 400 is returned
 - AND no user is persisted
 
-#### Scenario: Cargo optional
+#### Scenario: Position optional
 
-- GIVEN a payload with a valid name and email but no cargo
-- WHEN `POST /api/usuarios` is called
-- THEN the user is registered with the default cargo value
+- GIVEN a payload with a valid name and email but no position
+- WHEN `POST /api/users` is called
+- THEN the user is registered with the default position value
 
 ### R2. List employees
 
-The system MUST expose `GET /api/usuarios` returning all registered employees with name, email, and cargo, ordered by registration.
+The system MUST expose `GET /api/users` returning all registered employees with name, email, and position, ordered by registration.
 
 #### Scenario: Listing returns registered users
 
 - GIVEN two users registered
-- WHEN `GET /api/usuarios` is called
-- THEN both are returned with name, email, and cargo
+- WHEN `GET /api/users` is called
+- THEN both are returned with name, email, and position
 
 #### Scenario: Empty registry
 
 - GIVEN no users registered
-- WHEN `GET /api/usuarios` is called
+- WHEN `GET /api/users` is called
 - THEN an empty array is returned

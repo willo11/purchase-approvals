@@ -10,13 +10,13 @@ Dependencies: `purchase-request` data (request fields + `createdBy`/approver nam
 
 ### R1. Generation on completion
 
-When the global status becomes `Completada`, the system MUST generate a PDF containing: request title, description, amount, date, "Solicitante" set to the requester's resolved name from `createdBy.name`, and a signature section with exactly 3 rows (one per approver), each showing the approver's registered name (from the snapshot) and signature timestamp.
+When the global status becomes `COMPLETED`, the system MUST generate a PDF containing: request title, description, amount, date, "Requester" set to the requester's resolved name from `createdBy.name`, and a signature section with exactly 3 rows (one per approver), each showing the approver's registered name (from the snapshot) and signature timestamp.
 
 #### Scenario: PDF reflects requester and registered signature names
 
 - GIVEN a completed request whose `createdBy.name` is "Carol" and whose 3 approvers signed with registered names and timestamps
 - WHEN the PDF is generated
-- THEN it contains the request data with "Solicitante: Carol" and 3 signature rows, each with the approver's registered name and timestamp
+- THEN it contains the request data with "Requester: Carol" and 3 signature rows, each with the approver's registered name and timestamp
 
 ### R2. Storage in S3
 
@@ -30,7 +30,7 @@ The generated PDF MUST be stored in S3 under a deterministic key derived from th
 
 ### R3. Download endpoint
 
-`GET /api/solicitudes/{id}/evidencia.pdf` MUST return the PDF with `Content-Type: application/pdf` when it exists. It MUST return HTTP 404 when the request does not exist or no PDF has been generated (request not completed).
+`GET /api/purchase-requests/{id}/evidence.pdf` MUST return the PDF with `Content-Type: application/pdf` when it exists. It MUST return HTTP 404 when the request does not exist or no PDF has been generated (request not completed).
 
 #### Scenario: Download available when completed
 
@@ -40,18 +40,18 @@ The generated PDF MUST be stored in S3 under a deterministic key derived from th
 
 #### Scenario: Download before completion
 
-- GIVEN a request still `Pendiente`
+- GIVEN a request still `PENDING`
 - WHEN the download endpoint is called
 - THEN HTTP 404 is returned
 
 ### R4. Generation failure handling
 
-If PDF generation or S3 upload fails, the system MUST log the failure, keep the request status `Completada`, and the download endpoint MUST return HTTP 404 until a successful generation exists.
+If PDF generation or S3 upload fails, the system MUST log the failure, keep the request status `COMPLETED`, and the download endpoint MUST return HTTP 404 until a successful generation exists.
 
 #### Scenario: Failed generation leaves request complete
 
 - GIVEN a request whose PDF generation failed
 - WHEN the download endpoint is called
 - THEN HTTP 404 is returned
-- AND the request global status remains `Completada`
+- AND the request global status remains `COMPLETED`
 - AND the failure is logged

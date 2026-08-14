@@ -4,13 +4,13 @@
 
 Define per-approver access gating: UUID approval tokens, simulated mail, and 6-digit OTP issue/validation (hash, 3-minute expiry, 3-attempt lockout).
 
-Dependencies: `purchase-request` data model (approver records keyed by email as `SK=APPR#<email>` and global request state). The rules that produce terminal states (`Firmado`/`Rechazado`/`Completada`/`Rechazada`) are defined in `approval-signature`; this spec only reads them. Approver identity is the registered email; display names are sourced from `user-registry` snapshots.
+Dependencies: `purchase-request` data model (approver records keyed by email as `SK=APPR#<email>` and global request state). The rules that produce terminal states (`SIGNED`/`REJECTED`/`COMPLETED`/`REJECTED`) are defined in `approval-signature`; this spec only reads them. Approver identity is the registered email; display names are sourced from `user-registry` snapshots.
 
 ## Requirements
 
 ### R1. Approval token and link
 
-Each approver record MUST be issued a unique, URL-safe UUID token. The approval link MUST have the form `https://<host>/approve?solicitud_id=<request_id>&approver_token=<uuid>`.
+Each approver record MUST be issued a unique, URL-safe UUID token. The approval link MUST have the form `https://<host>/approve?request_id=<request_id>&approver_token=<uuid>`.
 
 #### Scenario: Unique tokens per approver
 
@@ -76,7 +76,7 @@ For an expired OTP (before lockout), the system MUST support a "generate new OTP
 
 ### R7. Token entry gate
 
-Before any OTP flow, the system MUST resolve the token and check the global request state and the approver's own state; when the approver already signed/rejected or the request is `Rechazada`/`Completada`, the system MUST return a terminal-state response blocking any OTP issuance or validation.
+Before any OTP flow, the system MUST resolve the token and check the global request state and the approver's own state; when the approver already signed/rejected or the request is `REJECTED`/`COMPLETED`, the system MUST return a terminal-state response blocking any OTP issuance or validation.
 
 #### Scenario: Terminal state blocks OTP
 

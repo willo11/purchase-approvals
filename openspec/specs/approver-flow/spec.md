@@ -10,7 +10,7 @@ Dependencies: backend REST API for `approver-otp` (token gate, OTP) and `approva
 
 ### R1. Link resolution and terminal gate
 
-Opening `/approve?solicitud_id=<id>&approver_token=<uuid>` MUST resolve the token via REST and, when the approver already signed/rejected or the request is `Rechazada`/`Completada`, MUST show an informational terminal screen with no actions.
+Opening `/approve?request_id=<id>&approver_token=<uuid>` MUST resolve the token via REST and, when the approver already signed/rejected or the request is `REJECTED`/`COMPLETED`, MUST show an informational terminal screen with no actions.
 
 #### Scenario: Request already rejected
 

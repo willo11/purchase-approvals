@@ -57,14 +57,14 @@ Verify: `npm test` in backend runs, `npm run build` in each frontend remote prod
 
 > **Concept**: The registry is the identity source for every other capability. Email = natural key (`PK=USER#<email>`). Role is POSITIONAL (requester/approver derived from where a user is referenced), not stored. No password — email-only demo identity (Decisions 9,10).
 
-- [x] 1.1 `domain/User.ts` (name, email, cargo) + `domain/values/Email.ts` + `domain/enums/` as needed — zero framework deps.
+- [x] 1.1 `domain/User.ts` (name, email, position) + `domain/values/Email.ts` + `domain/enums/` as needed — zero framework deps.
 - [x] 1.2 `application/RegisterUser.ts` use-case (empty name/email → 400; duplicate → 409) + its `UserRepository` port (assert conditional `PutItem`, no overwrite).
 - [x] 1.3 `application/ListUsers.ts` use-case + port (creation order).
 - [x] 1.4 `infrastructure/DynamoDbUserRepository.ts` (put w/ dup prevention `ConditionExpression`, query via GSI).
 - [x] 1.5 `api/handlers/userRegistry.ts`: `createUser` → 201/400/409, `listUsers` → 200 via error→HTTP mapper (design-api policy).
-- [x] 1.6 Unit tests: fluent fake repo; `POST /api/usuarios` 201/409/400 (spec R1 scenarios); list empty + non-empty (R2).
+- [x] 1.6 Unit tests: fluent fake repo; `POST /api/users` 201/409/400 (spec R1 scenarios); list empty + non-empty (R2).
 - [x] 1.7 Integration (dynamodb-local): register + duplicate + list real round-trip.
-- [x] 1.8 Append DECISIONS.md entry (email key, cargo optional default, no-password).
+- [x] 1.8 Append DECISIONS.md entry (email key, position optional default, no-password).
 
 Verify: suite green, >=60% coverage.
 
@@ -72,10 +72,10 @@ Verify: suite green, >=60% coverage.
 
 ## PR #2 — purchase-request
 
-> **Concept**: The aggregate. Snapshots `createdBy`/`approvers` names at creation (evidence must not break if identity changes, Decisions 3). Global state `Pendiente`->`Completada|Rechazada` dominates all gates (Completada > Rechazada > Pendiente). Tokens + mail are issued via ports implemented in PR #3.
+> **Concept**: The aggregate. Snapshots `createdBy`/`approvers` names at creation (evidence must not break if identity changes, Decisions 3). Global state `PENDING`->`COMPLETED|REJECTED` dominates all gates (COMPLETED > REJECTED > PENDING). Tokens + mail are issued via ports implemented in PR #3.
 
 - [ ] 2.1 `domain/` `PurchaseRequest`, `Approver`, enums `GlobalStatus`, `Amount` value object (positive, <=2 decimals, USD) (design-api `RequestShape`).
-- [ ] 2.2 `application/CreateRequest.ts`: validate title/description/amount/3 distinct approvers != requester; resolve emails against `UserRegistryPort` (unknown → 404); snapshot names; persist `REQ` + 3 `APPR#<email>` records (Pendiente); emit `TokenIssuerPort` + `MailPort` calls (implemented PR #3).
+- [ ] 2.2 `application/CreateRequest.ts`: validate title/description/amount/3 distinct approvers != requester; resolve emails against `UserRegistryPort` (unknown → 404); snapshot names; persist `REQ` + 3 `APPR#<email>` records (PENDING); emit `TokenIssuerPort` + `MailPort` calls (implemented PR #3).
 - [ ] 2.3 `application/ListRequests.ts` (newest first via GSI1) + `GetRequestDetail.ts` (404 unknown; per-approver status view).
 - [ ] 2.4 `infrastructure/DynamoDbRequestRepository.ts` (REQ + APPR records, GSI list, detail with approver query).
 - [ ] 2.5 `api/handlers/purchaseRequest.ts`: `create` (201/400/404), `list` (200), `detail` (200/404).
@@ -92,7 +92,7 @@ Verify: suite green, >=60%.
 > **Concept**: Access gate. OTP lives in its OWN TTL item (`OTP#<req>#<email>`, 3-min) so table TTL never deletes the durable approver record (Decisions 4). Expiry validated IN CODE; TTL is cleanup. Lockout (`tokenStatus=INVALIDATED_LOCKOUT`) lives on the durable approver item, set atomically when attempts reach 3. Gate chain: request terminal? -> approver lockout? -> token matches + OTP valid? (concurrency detail §2, §6).
 
 - [ ] 3.1 `domain/` OTP value object + `Token` (url-safe uuid) + `OtpService` (generate 6-digit, sha256 hash).
-- [ ] 3.2 Implement `TokenIssuerPort` (from 2.2): uuid per approver URL `https://<host>/approve?solicitud_id=<id>&approver_token=<uuid>` (spec R1).
+- [ ] 3.2 Implement `TokenIssuerPort` (from 2.2): uuid per approver URL `https://<host>/approve?request_id=<id>&approver_token=<uuid>` (spec R1).
 - [ ] 3.3 `infrastructure/MockMailRepo` (MAIL type rows) implementing `MailPort`; `api/handlers/mockMail.ts` `list` → `GET /mock-mail` newest first (R2).
 - [ ] 3.4 `application/IssueOtp.ts` (R3/R7 gate chain: terminal 410, lockout 403, issues hash+TTL via mail).
 - [ ] 3.5 `application/ValidateOtp.ts` (R4/R5): in-code expiry, consume OTP on success, `attempts<3` conditional counter + atomic lockout at 3, `{attemptsRemaining}` on 401.
@@ -108,11 +108,11 @@ Verify: suite green, >=60%. Flag if near 800 — keep PDF handler out.
 
 ## PR #4 — approval-signature
 
-> **Concept**: The interview-core concurrency decision. The REQUEST item is the single CAS lock (`ConditionExpression` = compare-and-swap). Approve: Step A approver commit, then read set; only when 3 signed issue Step B completion CAS (`attribute_not_exists(completedAt)`) — exactly one writer wins, loser gets 409 and must NOT generate. Reject: approver commit, then REQ CAS `status=Pendiente AND attribute_not_exists(rejectedAt)` — only first reject wins; if a concurrent approve already CAS'd `Completada`, reject loses (design-concurrency §3,§4).
+> **Concept**: The interview-core concurrency decision. The REQUEST item is the single CAS lock (`ConditionExpression` = compare-and-swap). Approve: Step A approver commit, then read set; only when 3 signed issue Step B completion CAS (`attribute_not_exists(completedAt)`) — exactly one writer wins, loser gets 409 and must NOT generate. Reject: approver commit, then REQ CAS `status=PENDING AND attribute_not_exists(rejectedAt)` — only first reject wins; if a concurrent approve already CAS'd `COMPLETED`, reject loses (design-concurrency §3,§4).
 
 - [ ] 4.1 `application/ApproveRequest.ts`: GateChain (terminal/lockout/already-acted); Step A `UpdateItem APPR status_signed` cond `attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)`; signature = registered snapshot name + timestamp (spec R1 — no typed name).
 - [ ] 4.2 Completion: read approver set; count `status_signed`; if ==3 issue Step B REQ CAS `attribute_not_exists(completedAt)`; on `ConditionalCheckFailed` re-read and return state, DO NOT generate (R3/R4).
-- [ ] 4.3 `application/RejectRequest.ts`: Step A `status_rejected` cond; Step B REQ CAS `status=Pendiente AND attribute_not_exists(rejectedAt)` (R2 terminal global; other links blocked informational).
+- [ ] 4.3 `application/RejectRequest.ts`: Step A `status_rejected` cond; Step B REQ CAS `status=PENDING AND attribute_not_exists(rejectedAt)` (R2 terminal global; other links blocked informational).
 - [ ] 4.4 Define `EvidenceGeneratorPort` (used by the completion CAS winner; implemented PR #5).
 - [ ] 4.5 `api/handlers/signature.ts`: `approve` (201/404/401/409/410), `reject` `{confirm:true}` same codes (design-api).
 - [ ] 4.6 Unit tests: approve uses registered name (R1); signature recorded once + no double-sign (R4); reject terminal + blocks others (R2); third-signature completes (R3); **assert emitted `ConditionExpression`** for both CAS steps on fake repo.
@@ -125,13 +125,13 @@ Verify: suite green, >=60%. Near-budget — monitor.
 
 ## PR #5 — pdf-evidence
 
-> **Concept**: pdf-lib with standard `StandardFonts.Helvetica` — pure TS, zero native deps for Lambda (Decisions 7). "Solicitante" resolved from `createdBy.name`. PDF idempotency via deterministic `evidenceKey` (`reqs/<id>/evidencia.pdf`) + `attribute_not_exists(evidenceKey)` guard; generation failure keeps `Completada`, download 404 (spec R4).
+> **Concept**: pdf-lib with standard `StandardFonts.Helvetica` — pure TS, zero native deps for Lambda (Decisions 7). "Requester" resolved from `createdBy.name`. PDF idempotency via deterministic `evidenceKey` (`reqs/<id>/evidence.pdf`) + `attribute_not_exists(evidenceKey)` guard; generation failure keeps `COMPLETED`, download 404 (spec R4).
 
-- [ ] 5.1 Implement `EvidenceGeneratorPort` (from 4.4): `infrastructure/PdfGenerator.ts` — pdf-lib, request data + "Solicitante: <createdBy.name>" + 3 signature rows (name + timestamp) (spec R1).
-- [ ] 5.2 `infrastructure/S3EvidenceStore.ts` (`PutObject` evidenceKey `reqs/<id>/evidencia.pdf`, `ContentType: application/pdf`, `GetObject`) (R2).
-- [ ] 5.3 Wire completion: guard `attribute_not_exists(evidenceKey)` read before generate; on CAS win generate→S3→`UpdateItem REQ SET evidenceKey`; on failure log, keep `Completada`, no `evidenceKey`.
+- [ ] 5.1 Implement `EvidenceGeneratorPort` (from 4.4): `infrastructure/PdfGenerator.ts` — pdf-lib, request data + "Requester: <createdBy.name>" + 3 signature rows (name + timestamp) (spec R1).
+- [ ] 5.2 `infrastructure/S3EvidenceStore.ts` (`PutObject` evidenceKey `reqs/<id>/evidence.pdf`, `ContentType: application/pdf`, `GetObject`) (R2).
+- [ ] 5.3 Wire completion: guard `attribute_not_exists(evidenceKey)` read before generate; on CAS win generate→S3→`UpdateItem REQ SET evidenceKey`; on failure log, keep `COMPLETED`, no `evidenceKey`.
 - [ ] 5.4 `api/handlers/evidence.ts` `download`: 200 `application/pdf` when exists; 404 if not completed/not found (R3).
-- [ ] 5.5 Unit tests: PdfGenerator output contains "Solicitante: Carol" + 3 rows; failure keeps `Completada`; download 200/404 (spec R1/R3/R4).
+- [ ] 5.5 Unit tests: PdfGenerator output contains "Requester: Carol" + 3 rows; failure keeps `COMPLETED`; download 200/404 (spec R1/R3/R4).
 - [ ] 5.6 Integration (dynamodb-local): 3rd approve triggers generation, evidenceKey set, GET returns PDF bytes.
 - [ ] 5.7 DECISIONS.md (pdf-lib Helvetica, existence-key idempotency).
 
@@ -144,9 +144,9 @@ Verify: suite green, >=60%.
 > **Concept**: Micro-front-end split by bounded context, not by layer (Decisions 1). Host = shell + routing chassis that lazy-loads remotes. `solicitante` owns `/solicitante*`. State lives in the backend; apps never talk to each other — the APIs are the only contract (design-api mapping). Every axios call maps to endpoints #2/#3/#4/#5/#6.
 
 - [ ] 6.1 Host shell: React.lazy+Suspense routes mounting remotes.
-- [ ] 6.2 `solicitante` list screen → `GET /api/solicitudes`, empty-state (requester-panel R1), newest first.
-- [ ] 6.3 Create form: requester + 3 approver selectors from `GET /api/usuarios`, requester != approvers constraint, submit → `POST /api/solicitudes`, surface validation errors, navigate to detail (R2).
-- [ ] 6.4 Detail screen: per-approver status table (Pendiente/Firmado/Rechazado) (R3); "Download PDF" button only when `Completada` → blob `GET .../evidencia.pdf` (R4).
+- [ ] 6.2 `solicitante` list screen → `GET /api/purchase-requests`, empty-state (requester-panel R1), newest first.
+- [ ] 6.3 Create form: requester + 3 approver selectors from `GET /api/users`, requester != approvers constraint, submit → `POST /api/purchase-requests`, surface validation errors, navigate to detail (R2).
+- [ ] 6.4 Detail screen: per-approver status table (PENDING/SIGNED/REJECTED) (R3); "Download PDF" button only when `COMPLETED` → blob `GET .../evidence.pdf` (R4).
 - [ ] 6.5 axios service + mappers (DTO → component shape); error surfaced without crash (R5).
 - [ ] 6.6 Jest+RTL: render list (2 requests + empty), create form user-list + validation error, detail table, PDF-button visibility (scenarios R1-R5) with mocked axios.
 - [ ] 6.7 Coverage >=60% in `solicitante` jest config; DECISIONS.md frontend entry.
@@ -159,7 +159,7 @@ Verify: remote suite green, build ok.
 
 > **Concept**: `aprobador` remote owns `/approve`. Driver = the terminal gate: terminal state overrides everything. OTP entry, lockout, and regenerate are distinct UI states driven by HTTP codes (#7/#8/#9). Approve never asks for a name (registered snapshot), Reject requires confirm (approver-flow R1-R4). Calls map to #7-#11.
 
-- [ ] 7.1 Link resolution screen: read `solicitud_id` + `approver_token`; `POST .../otp` → terminal (410) / lockout (403) / OTP entry (R1).
+- [ ] 7.1 Link resolution screen: read `request_id` + `approver_token`; `POST .../otp` → terminal (410) / lockout (403) / OTP entry (R1).
 - [ ] 7.2 OTP entry: 6-digit input → `POST .../otp/validate`; wrong code shows `{attemptsRemaining}`; 3rd → lockout screen; expired → "generate new OTP" `POST .../otp/regenerate` (R2).
 - [ ] 7.3 Detail + Approve/Reject: show request, Approve → `POST .../approve` (no name input), Reject → `POST .../reject` with `{confirm:true}` (R3).
 - [ ] 7.4 Terminal screens: already-signed / already-rejected / completed; no actions (R4).
@@ -175,7 +175,7 @@ Verify: remote suite green, build ok.
 
 > **Concept**: The assignment's documentation + deployment deliverables. Auth disclaimer is REQUIRED (email-only identity = demo limitation, Cognito/JWT documented). Swagger is the 12-endpoint contract reviewers use to drive the demo (lives in `backend/docs/`).
 
-- [ ] 8.1 Root `README.md`: run backend (serverless-offline + DYNAMODB_LOCAL), run frontend, end-to-end demo walkthrough (register → create → mock-mail → OTP → 3 approvals → Completada + PDF), assumptions, **auth disclaimer**.
+- [ ] 8.1 Root `README.md`: run backend (serverless-offline + DYNAMODB_LOCAL), run frontend, end-to-end demo walkthrough (register → create → mock-mail → OTP → 3 approvals → COMPLETED + PDF), assumptions, **auth disclaimer**.
 - [ ] 8.2 Swagger/OpenAPI `backend/docs/openapi.yaml`: all 12 endpoints (#1-#12) with schemas, error→HTTP policy (design-api), example curl flows (spec tests).
 - [ ] 8.3 Deploy backend: `sls deploy` (Lambda+API Gateway+DynamoDB+S3); record deployed URLs in README.
 - [ ] 8.4 Deploy frontend: build 3 bundles, upload to S3 bucket + CloudFront; record URLs.

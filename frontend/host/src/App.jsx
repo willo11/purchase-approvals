@@ -17,7 +17,7 @@ export default function App() {
       <Route
         path="/solicitante/*"
         element={
-          <Suspense fallback={<div>Loading solicitante module...</div>}>
+          <Suspense fallback={<div>Loading requester module...</div>}>
             <SolicitanteApp />
           </Suspense>
         }
