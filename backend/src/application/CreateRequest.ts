@@ -60,23 +60,30 @@ export class CreateRequest {
       approverNames: resolvedApprovers.map((a) => a.name),
     });
 
-    // Issue per-approver tokens and persist REQ + 3 approver records (PENDING).
-    const approverRecords = resolvedApprovers.map((approver) => {
-      const link = this.tokenIssuer.issueApprovalLink(id, approver.email);
-      return { email: approver.email, name: approver.name, token: link.token };
-    });
+    // Issue each approver's approval link ONCE, then reuse the SAME token for
+    // both the persisted approver record and the mailed approve URL. The
+    // approve flow (PR #3) resolves the URL token against the stored APPR
+    // record, so the token and the mail must match.
+    const links = resolvedApprovers.map((approver) =>
+      this.tokenIssuer.issueApprovalLink(id, approver.email)
+    );
+    const approverRecords = resolvedApprovers.map((approver, index) => ({
+      email: approver.email,
+      name: approver.name,
+      token: links[index].token,
+    }));
     await this.repository.create(request, approverRecords);
 
-    // Simulated approval-link mail per approver.
-    for (const approver of resolvedApprovers) {
-      const link = this.tokenIssuer.issueApprovalLink(id, approver.email);
+    // Simulated approval-link mail per approver, reusing the same issued link.
+    for (let i = 0; i < resolvedApprovers.length; i += 1) {
+      const approver = resolvedApprovers[i];
       await this.mail.send({
         id: randomUUID(),
         to: approver.email,
         type: 'APPROVAL_LINK' as const,
         subject: `Approval needed: ${draft.title}`,
         body: `${approver.name}, please approve request ${id}.`,
-        link: link.url,
+        link: links[i].url,
         createdAt: new Date().toISOString(),
       });
     }
