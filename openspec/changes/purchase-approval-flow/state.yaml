@@ -1,0 +1,30 @@
+change: purchase-approval-flow
+artifact_store: openspec
+status: in-progress
+current_phase: apply
+current_pr: 1
+
+dag:
+  proposal: done
+  specs: done
+  design: done
+  tasks: done
+  apply: in-progress
+  verify: pending
+  archive: pending
+
+branch:
+  base: main
+  active: feat/user-registry
+  applied_prs: [0]
+  pending_prs: [1, 2, 3, 4, 5, 6, 7, 8]
+
+notes: |
+  PR #0 bootstrap merged into main (feat/bootstrap promoted to main).
+  Native dispatcher was blocked ("specs **/spec.md missing") because per-change
+  delta specs lived only at openspec/specs/*. Fixed by creating
+  openspec/changes/purchase-approval-flow/specs/{domain}/spec.md (7 delta specs,
+  all ADDED). Dispatcher now reports next=apply.
+  Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
+
+updated_at: 2026-08-14T18:40:00

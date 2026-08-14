@@ -1,0 +1,52 @@
+# User Registry — Delta Spec
+
+Delta for the `user-registry` capability (main spec: `openspec/specs/user-registry/spec.md`). All requirements below are ADDED by this change.
+
+## ADDED Requirements
+
+### R1. Register employee
+
+The system MUST register an employee via `POST /api/usuarios` with: name (non-empty string), email (valid format, unique natural key), and cargo (job position, optional string with a default when omitted). A valid registration MUST persist the user keyed by email and return the created user. An email that already exists MUST return HTTP 409. A payload with an empty name or an invalid email format MUST return HTTP 400. No password is accepted or stored.
+
+#### Scenario: Successful registration
+
+- GIVEN a payload with a valid name, email, and cargo
+- WHEN `POST /api/usuarios` is called
+- THEN HTTP 201 returns the user with name, email, and cargo
+- AND the user is persisted under the email key
+
+#### Scenario: Duplicate email rejected
+
+- GIVEN a user with email ana@example.com already registered
+- WHEN `POST /api/usuarios` is called with the same email
+- THEN HTTP 409 is returned
+- AND no duplicate user is persisted
+
+#### Scenario: Invalid email rejected
+
+- GIVEN a payload whose email is not a valid email format
+- WHEN `POST /api/usuarios` is called
+- THEN HTTP 400 is returned
+- AND no user is persisted
+
+#### Scenario: Cargo optional
+
+- GIVEN a payload with a valid name and email but no cargo
+- WHEN `POST /api/usuarios` is called
+- THEN the user is registered with the default cargo value
+
+### R2. List employees
+
+The system MUST expose `GET /api/usuarios` returning all registered employees with name, email, and cargo, ordered by registration.
+
+#### Scenario: Listing returns registered users
+
+- GIVEN two users registered
+- WHEN `GET /api/usuarios` is called
+- THEN both are returned with name, email, and cargo
+
+#### Scenario: Empty registry
+
+- GIVEN no users registered
+- WHEN `GET /api/usuarios` is called
+- THEN an empty array is returned
