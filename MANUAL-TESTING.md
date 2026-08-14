@@ -44,8 +44,20 @@ aws --endpoint-url http://localhost:8000 dynamodb create-table \
 
 > ¿No tenés `aws` CLI? Anteponé credenciales dummy: `AWS_ACCESS_KEY_ID=x AWS_SECRET_ACCESS_KEY=x aws ...`.
 
-La tabla se crea UNA vez (persiste en el volumen de Docker). Si la borraste o cambiás
-`TABLE_NAME`, releela con el mismo comando con otro nombre.
+### ¿Por qué hay que crear la tabla a mano (solo localmente)?
+
+DynamoDB **no autoprovisiona tablas al escribirles**: las creás vos (o la infraestructura).
+La diferencia según dónde corras:
+
+| Entorno | Quién crea la tabla | ¿A mano? |
+|---------|--------------------|----------|
+| **AWS (deploy)** | `sls deploy` → **CloudFormation** lee `serverless.yml` y crea `PurchaseApprovalsTable` (con GSI1 + TTL) automáticamente | No |
+| **Local (serverless-offline)** | Nadie. `serverless-offline` corre las Lambdas pero **NO provisiona los recursos de CloudFormation** | Sí, con el `aws create-table` de arriba |
+
+Además, el contenedor `amazon/dynamodb-local` corre **en memoria** (este compose no usa
+`-dbPath` ni monta volumen), así que la tabla local desaparece al reiniciar el contenedor.
+Re-creala con el comando de arriba tras cada `db:up`. (Nota: los tests de integración
+crean su **propia** tabla descartable, así que esa no te sirve para estos curls.)
 
 ## Arrancar el backend
 
