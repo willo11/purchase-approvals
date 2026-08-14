@@ -4,7 +4,7 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #1 — user-registry (backend API)**. The frontend is NOT yet
+> Current status: **PR #2 — purchase-request (backend API)**. The frontend is NOT yet
 > connected to the backend (that lands in PR #6 requester-panel and PR #7 approver-flow),
 > so manual testing is, for now, 100% backend via `curl`.
 
@@ -99,10 +99,53 @@ curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/api/users
 
 **Expected result**: `201 → 409 → 400 → 400 → 200 (with the registered users)`.
 
-### PR #X — (pending)
+### PR #2 — purchase-request (`/api/purchase-requests`)
 
-The curls for the coming PRs will be added here as they land (purchase-request,
-approver-otp, approval-signature, pdf-evidence, requester-panel, approver-flow).
+First register the cast involved in a request (1 requester + 3 approvers). If `ana@example.com`
+was already created in the PR #1 run, skip that one:
+
+```bash
+for u in "Ruth|ruth@example.com|Manager" "Ana|ana@example.com|Analyst" "Sven|sven@example.com|Director" "Luca|luca@example.com|Compliance"; do
+  IFS='|' read -r n m p <<< "$u"
+  curl -s -o /dev/null -X POST http://localhost:4000/dev/api/users \
+    -H "Content-Type: application/json" -d "{\"name\":\"$n\",\"email\":\"$m\",\"position\":\"$p\"}"
+done
+```
+
+```bash
+# 1. Create request → 201 RequestDetail {status:PENDING, approvers:[3 x {status:PENDING,...}], tokens...}
+#    NOTE: copy the returned "id" — you need it for the detail call below.
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/purchase-requests \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Replace laptops","description":"Swap 3 dev laptops","amount":4500.00,"requesterEmail":"ruth@example.com","approverEmails":["ana@example.com","sven@example.com","luca@example.com"]}'
+
+# 2. Unknown approver email (not in user-registry) → 404
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/purchase-requests \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Ghost","description":"x","amount":10,"requesterEmail":"ruth@example.com","approverEmails":["ana@example.com","ghost@example.com","luca@example.com"]}'
+
+# 3. Duplicate approver (same email twice) → 400
+#    (approver == requester, and invalid amount/count behave the same → 400)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST http://localhost:4000/dev/api/purchase-requests \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Dup","description":"x","amount":10,"requesterEmail":"ruth@example.com","approverEmails":["ana@example.com","ana@example.com","sven@example.com"]}'
+
+# 4. List requests → 200, newest first (use the id captured from step 1)
+curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/api/purchase-requests
+
+# 5. Detail → 200 (replace YOUR_ID with the id from step 1)
+curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/api/purchase-requests/YOUR_ID
+
+# 6. Unknown request id → 404
+curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/api/purchase-requests/does-not-exist
+```
+
+**Expected result**: `201 → 404 → 400 → 200 → 200 → 404`. The create response includes the
+request `id`, a `PENDING` status, the `createdBy`/`approvers` name snapshots, and one unique
+approval token per approver (the real OTP/TTL + DB-backed mock-mail land in PR #3).
+
+> **Local note**: the DynamoDB container is in-memory, so a `db:up` + `db:create-table`
+> resets all data. Re-register the users and re-create the request to run these curls again.
 
 ---
 
@@ -125,9 +168,33 @@ infrastructure/DynamoDbUserRepository.ts → adapter (the only layer that knows 
 - **Ordered listing**: query by GSI1 (`gsi1sk = createdAt`, `ScanIndexForward: true`).
 - **`domain` without a framework**: `User`/`Email` import nothing external.
 
+The purchase-request flow is the aggregate + a richer port set. `CreateRequest` depends on
+**four** interfaces (not one):
+
+```
+api/handlers/purchaseRequest.ts          → HTTP (composition root: injects adapters)
+   ▼ calls
+application/CreateRequest.ts             → use case (orchestration + business rules)
+   ▼ depends on the PORTS (interfaces)
+application/ports/{RequestRepository, UserRegistryPort, TokenIssuerPort, MailPort}
+   ▲ implemented by
+infrastructure/{DynamoDbRequestRepository, DynamoDbUserRegistry, InMemoryTokenIssuer, LogMailer}
+```
+
+- **Aggregate**: `PurchaseRequest` owns the invariant — exactly 3 distinct approvers, all
+  different from the requester; `Amount`/`Email` reject bad values in their own constructors.
+- **Snapshots**: `createdBy`/`approvers` store `{email,name}` frozen at creation (evidence
+  won't break if a position changes later).
+- **Dependency inversion**: the use case calls interfaces only; the handler (composition
+  root) constructs the concrete adapters and injects them — swap DynamoDB for Postgres by
+  changing an adapter, not the domain/use case.
+- **Deferred to PR #3**: real OTP/TTL + DB-backed mock-mail. PR #2 defines
+  `TokenIssuerPort`/`MailPort` and wires placeholders so the flow runs end-to-end.
+
 ## Checklist
 
 - [ ] `backend/.env` created from `.env.example`
 - [ ] `dynamodb-local` running (`db:up`) and `purchase-approvals-dev` table created
 - [ ] `pnpm -C backend run dev` responds on `:4000`
 - [ ] The 5 PR #1 curls return `201 → 409 → 400 → 400 → 200`
+- [ ] The PR #2 curls return `201 → 404 → 400 → 200 → 200 → 404`
