@@ -49,6 +49,20 @@ functions:
           path: health
           method: get
 
+  register-user:
+    handler: dist/api/handlers/userRegistry.createUser
+    events:
+      - http:
+          path: api/usuarios
+          method: post
+
+  list-users:
+    handler: dist/api/handlers/userRegistry.listUsers
+    events:
+      - http:
+          path: api/usuarios
+          method: get
+
 resources:
   Resources:
     PurchaseApprovalsTable:
