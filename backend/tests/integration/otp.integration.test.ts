@@ -231,6 +231,55 @@ maybeDescribe('OTP flow (integration)', () => {
     ).resolves.toEqual({ valid: true });
   });
 
+  it('concurrent wrong submissions: attempts land at exactly 3, one lockout, no overshoot', async () => {
+    await requests.create(makeRequest('otp-con-wrong'), APPROVERS);
+    await issue.execute({ requestId: 'otp-con-wrong', token: 'token-bob' });
+    // the issued OTP item stays present (wrong codes never consume it), so
+    // every concurrent wrong submission drives the atomic counter, not expiry
+
+    const N = 5;
+    const results = await Promise.all(
+      Array.from({ length: N }, () =>
+        validate
+          .execute({ requestId: 'otp-con-wrong', token: 'token-bob', code: '000000' })
+          .then(() => 'valid')
+          .catch((err) => err.constructor.name)
+      )
+    );
+
+    // no submission may be accepted (all wrong)
+    expect(results).not.toContain('valid');
+    // at least one submission performed the lockout transition
+    expect(results.filter((r) => r === 'LockedOutError').length).toBeGreaterThanOrEqual(1);
+
+    await waitForTable();
+    const gateState = await approvers.findByToken('otp-con-wrong', 'token-bob');
+    // exactly the lockout limit, never overshot (attempts can never be > 3)
+    expect(gateState!.attempts).toBe(3);
+    expect(gateState!.tokenStatus).toBe('INVALIDATED_LOCKOUT');
+  });
+
+  it('concurrent identical CORRECT submissions: exactly ONE valid:true, the rest fail (one-time use)', async () => {
+    await requests.create(makeRequest('otp-con-ok'), APPROVERS);
+    await issue.execute({ requestId: 'otp-con-ok', token: 'token-bob' });
+    const code = await latestOtpCodeFor('bob@example.com');
+
+    const N = 5;
+    const results = await Promise.all(
+      Array.from({ length: N }, () =>
+        validate
+          .execute({ requestId: 'otp-con-ok', token: 'token-bob', code })
+          .then(() => 'valid')
+          .catch((err) => err.constructor.name)
+      )
+    );
+
+    // exactly one single-use winner — the atomic CAS consume allows no duplicates
+    expect(results.filter((r) => r === 'valid').length).toBe(1);
+    // every loser was treated as already-consumed/expired
+    expect(results.filter((r) => r === 'ExpiredOtpError').length).toBe(N - 1);
+  });
+
   it('GET /mock-mail source lists mails newest first (approval links + OTP)', async () => {
     await requests.create(makeRequest('otp-4'), APPROVERS);
 
