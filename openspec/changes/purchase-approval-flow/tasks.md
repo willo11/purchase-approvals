@@ -41,13 +41,13 @@ Total estimated: ~5,670 changed lines.
 
 > **Monorepo decision to confirm**: NOT a workspace tool (no npm workspaces/turborepo/lerna). Three independent folders `backend/`, `frontend/`, `mobile/`, each with its own `package.json`. Root `package.json` optional, convenience scripts only. `mobile/` stays out of scope for this change (deferred).
 
-- [ ] 0.1 `backend/package.json` (TS, jest, ts-jest, serverless, pdf-lib, aws-sdk v3 deps) + `tsconfig.json` + `.gitignore`.
-- [ ] 0.2 `backend/jest.config.js`: `coverageThreshold` global 60 (spec R9/config); unit vs integration (`dynamodb-local`) project setups.
-- [ ] 0.3 Clean-architecture folder skeleton: `backend/src/{domain,application,infrastructure,api,handlers}` empty entry + trivial `health` handler wired in `serverless.yml` (functions + DynamoDB table + GSI1 + TTL on `otpExpiresAt` + S3 bucket).
-- [ ] 0.4 Integration harness: `docker-compose`/script launching `dynamodb-local`; `DYNAMODB_LOCAL` env guard (design: single table `PK`/`SK`/`GSI1`/`ttl`).
-- [ ] 0.5 `frontend/` webpack-5 Module Federation scaffold: `host` + remotes `solicitante`, `aprobador`, each an empty page; `shared:{react:{singleton:true}}` + `React.lazy`/`Suspense` (frontend Decisions 1,3).
-- [ ] 0.6 Root `README.md` skeleton, root `.gitignore`, CI test script (`test:ci` runs backend + each frontend remote).
-- [ ] 0.7 Update `openspec/config.yaml`: set `apply.test_command`, `verify.test_command`, record Jest/dynamodb-local in `testing:` capabilities.
+- [x] 0.1 `backend/package.json` (TS, jest, ts-jest, serverless, pdf-lib, aws-sdk v3 deps) + `tsconfig.json` + `.gitignore`.
+- [x] 0.2 `backend/jest.config.ts`: `coverageThreshold` global 60 (spec R9/config); unit vs integration (`dynamodb-local`) project setups.
+- [x] 0.3 Clean-architecture folder skeleton: `backend/src/{domain,application,infrastructure,api,handlers}` empty entry + trivial `health` handler wired in `serverless.yml` (functions + DynamoDB table + GSI1 + TTL on `otpExpiresAt` + S3 bucket).
+- [x] 0.4 Integration harness: `docker-compose`/script launching `dynamodb-local`; `DYNAMODB_LOCAL` env guard (design: single table `PK`/`SK`/`GSI1`/`ttl`).
+- [x] 0.5 `frontend/` webpack-5 Module Federation scaffold: `host` + remotes `solicitante`, `aprobador`, each an empty page; `shared:{react:{singleton:true}}` + `React.lazy`/`Suspense` (frontend Decisions 1,3).
+- [x] 0.6 Root `README.md` skeleton, root `.gitignore`, CI test script (`test:ci` runs backend + each frontend remote).
+- [x] 0.7 Update `openspec/config.yaml`: set `apply.test_command`, `verify.test_command`, record Jest/dynamodb-local in `testing:` capabilities.
 
 Verify: `npm test` in backend runs, `npm run build` in each frontend remote produces bundles, health endpoint responds.
 

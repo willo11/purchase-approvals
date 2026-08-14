@@ -5,13 +5,15 @@ project: purchase-approvals
 description: Serverless purchase-approval flow with concatenated digital signatures (web + mobile clients)
 
 context: |
-  Tech stack: Empty scaffold - backend/frontend/mobile folders exist but no source files yet.
-  Planned stack: Node.js/TypeScript serverless AWS (Lambda/Step Functions, API Gateway, DynamoDB, S3, PDF generation);
-  React 17+ web frontend (axios, React Router, webpack); React Native mobile app later.
-  Architecture: REST APIs consumed by the web frontend and later by the React Native app.
-  Testing: Not yet scaffolded - no test runner detected; backend slice will add Jest (or similar) during implementation
-  and MUST update this capabilities record then.
-  Conventions: Neutral professional English for all artifacts; conventional commits; git repo on main with no commits yet.
+  Tech stack: Monorepo of independent packages (no workspace tool). backend/ = Node.js 20 + TypeScript,
+  Serverless Framework (Lambda + API Gateway + DynamoDB single-table + S3), Clean Architecture
+  (domain/application/infrastructure/api); frontend/ = React 18 + axios + React Router v6 + webpack 5
+  Module Federation (host + solicitante + aprobador remotes); mobile/ = React Native study, deferred.
+  Testing: Jest + ts-jest (backend, node env) and Jest + jsdom + React Testing Library (each frontend
+  app), coverage thresholds >=60% enforced in every jest config; integration tests run against
+  dynamodb-local (docker compose) gated by the DYNAMODB_LOCAL env var.
+  Conventions: Neutral professional English for all artifacts; conventional commits; git repo on main
+  with feature branches per PR (force-chained: PR #0 bootstrap + 7 capability PRs).
 
 rules:
   proposal:
@@ -27,43 +29,41 @@ rules:
     - Keep tasks completable in one session
   apply:
     - Follow existing code patterns
-    tdd: false           # No test runner scaffolded yet; enable RED-GREEN-REFACTOR once Jest (or similar) is added
-    test_command: ""     # To be set when the backend test runner is scaffolded
+    tdd: false           # Test-first RED-GREEN-REFACTOR not enforced; coverage threshold IS enforced
+    test_command: "npm run test:ci"   # backend + host + solicitante + aprobador (root package.json)
   verify:
-    test_command: ""     # To be set when the backend test runner is scaffolded
-    build_command: ""
+    test_command: "npm run test:ci"
+    build_command: "npm run build:ci"
     coverage_threshold: 60   # Assignment requirement: >=60% coverage
-  archive:
-    - Warn before merging destructive deltas
 
 testing:
   strict_tdd: false
   detected: 2026-08-14
-  reason: "No test runner present (empty scaffold). Backend slice MUST scaffold Jest (or similar) during implementation and update this record; strict_tdd must be re-evaluated then."
+  reason: "Scaffolded in PR #0 bootstrap: backend Jest+ts-jest (node), frontend Jest+jsdom+RTL per app. strict_tdd stays false; coverage >=60% is enforced by thresholds in every jest config."
   test_runner:
-    framework: null
-    command: null
+    framework: jest
+    command: npm run test:ci
   layers:
     unit:
-      available: false
-      tool: null
+      available: true
+      tool: jest + ts-jest (backend), jest + jsdom + RTL (frontend)
     integration:
-      available: false
-      tool: null
+      available: true
+      tool: jest against dynamodb-local (backend/docker-compose.yml, DYNAMODB_LOCAL guard)
     e2e:
       available: false
       tool: null
   coverage:
-    available: false
-    command: null
+    available: true
+    command: npm run test:ci
     threshold_requirement: 60
   quality:
     linter:
       available: false
       command: null
     type_checker:
-      available: false
-      command: null
+      available: true
+      command: npm --prefix backend run typecheck
     formatter:
       available: false
       command: null
