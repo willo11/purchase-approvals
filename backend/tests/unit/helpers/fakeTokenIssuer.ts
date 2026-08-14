@@ -14,6 +14,7 @@ export class FakeTokenIssuer implements TokenIssuerPort {
   private counter = 0;
 
   issueApprovalLink(requestId: string, approverEmail: string): ApprovalLink {
+    this.issueCalls += 1;
     this.counter += 1;
     return {
       token: `token-${this.counter}-${approverEmail}`,

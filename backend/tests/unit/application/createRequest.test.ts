@@ -48,6 +48,25 @@ describe('CreateRequest use case (R1)', () => {
     expect(registry.findByEmailCalls).toBe(4);
   });
 
+  it('issues ONE token per approver reused for BOTH the persisted record and the mailed link (R1)', async () => {
+    const { repository, tokenIssuer, mail, useCase } = buildDeps();
+
+    await useCase.execute(validCreateInput());
+
+    // single issuance per approver (no duplicated token generation)
+    expect(tokenIssuer.issueCalls).toBe(3);
+
+    const stored = repository.lastApprovers; // 3 persisted approver records
+    expect(stored).toHaveLength(3);
+    for (let i = 0; i < stored.length; i += 1) {
+      // the mailed link carries the SAME token as the persisted record
+      const url = new URL(mail.events[i].link!);
+      const mailToken = url.searchParams.get('approver_token');
+      expect(mailToken).toBe(stored[i].token);
+      expect(stored[i].token.length).toBeGreaterThan(0);
+    }
+  });
+
   it('raises 404 (UnknownUserError) when the requester is not registered', async () => {
     const { registry, useCase } = buildDeps();
     registry.clear();
