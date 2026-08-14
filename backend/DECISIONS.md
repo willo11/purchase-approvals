@@ -98,3 +98,10 @@
 - **Why**: faster installs, strict dependency layout (symlinked store), no npm lockfiles.
 - **Gotcha (pv11)**: pnpm ignores dependency build scripts by default and **fails with exit 1 (ERR_PNPM_IGNORED_BUILDS)** until you allow them. The setting lives in `pnpm-workspace.yaml` (`allowBuilds:` map), NOT in package.json — that is a v11 breaking change. Backend needed `allowBuilds: { serverless: true, aws-sdk: true, es5-ext: true }`.
 - **Interview line**: "pnpm v11 gates postinstall scripts by default; I allowed only the ones that need to build (Serverless Framework) in pnpm-workspace.yaml."
+
+## 16. User registry: email as PK, optional cargo with default, no-password
+- **Tradeoff**: what identifies a user unambiguously; whether job position is required; how much auth to ship for the demo.
+- **Decision**: `email` is the natural key (`USER#<email>`); `cargo` is optional and defaults to `Empleado`; no password is accepted or stored.
+- **Why**: email is inherently unique and re-verified by `Email` format validation; the brief lists three roles but they are positional (Decision 9), so `cargo` needs no required enum — a default keeps the payload ergonomic; email-only identity (Decision 10) keeps the demo deliverable and documents auth as out of scope.
+- **Duplicate prevention**: enforced by the database, not application memory — the repository `PutItem` uses `ConditionExpression: attribute_not_exists(PK)`, so a concurrent or double registration maps to 409 with zero chance of overwrite.
+- **Interview line**: "The natural key is the email and the uniqueness constraint lives in a conditional PutItem — I never read-then-write to check for duplicates; DynamoDB does that atomically."
