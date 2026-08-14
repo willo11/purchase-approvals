@@ -72,3 +72,56 @@ export class UnknownUserError extends PurchaseRequestDomainError {}
 
 /** Raised when a request id does not exist. Mapped to HTTP 404. */
 export class UnknownRequestError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when an OTP submitted for validation is not a 6-digit numeric code.
+ * Mapped to HTTP 400 at the API boundary (design-api policy).
+ */
+export class InvalidOtpCodeError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when an action is attempted with a token that does not resolve to an
+ * approver record of a request. Mapped to HTTP 404 (design-api "Unknown/expired
+ * token").
+ */
+export class UnknownTokenError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when the request is already terminal (`COMPLETED` / `REJECTED`) so no
+ * OTP flow may proceed. Mapped to HTTP 410 (design-concurrency §2 gate 1).
+ */
+export class TerminalRequestError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when the approver token is `INVALIDATED_LOCKOUT`. Mapped to HTTP 403
+ * with `attemptsRemaining: 0` when a failure triggered it, plain 403 otherwise
+ * (design-concurrency §2 gate 2).
+ */
+export class LockedOutError extends PurchaseRequestDomainError {
+  constructor(
+    message: string,
+    public readonly attemptsRemaining = 0
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Raised when a submitted OTP is wrong. Mapped to HTTP 401 with the payload
+ * `{ attemptsRemaining }` (design-api policy).
+ */
+export class WrongOtpError extends PurchaseRequestDomainError {
+  constructor(
+    message: string,
+    public readonly attemptsRemaining: number
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Raised when the current OTP is missing or past its `otpExpiresAt` even though
+ * the DynamoDB TTL has not fired yet. Mapped to HTTP 410 (expiry validated in
+ * code; TTL is only cleanup — design-concurrency §6, spec R4).
+ */
+export class ExpiredOtpError extends PurchaseRequestDomainError {}
