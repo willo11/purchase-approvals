@@ -7,6 +7,9 @@ provider:
   runtime: nodejs20.x
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
+  # Load backend/.env (ignore empty chars) so DYNAMODB_LOCAL, TABLE_NAME,
+  # creds etc. reach the running functions during `serverless offline`.
+  useDotenv: true
   environment:
     TABLE_NAME: ${self:custom.tableName}
     EVIDENCE_BUCKET: ${self:custom.bucketName}
@@ -39,6 +42,7 @@ custom:
   bucketName: purchase-approvals-evidence-${self:provider.stage}
 
 plugins:
+  - serverless-dotenv-plugin
   - serverless-offline
 
 functions:
