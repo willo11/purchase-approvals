@@ -59,7 +59,7 @@ describe('DynamoDbApproverRepository', () => {
 
   it('incrementAttempts uses a conditional CAS counter and returns attempts before the limit', async () => {
     const client = fakeClient();
-    // attempts goes 1 (below limit) → no secondary lockout write
+    // common increment succeeds (attempts 0 → 1), well below the limit
     client.send.mockResolvedValue({ Attributes: { attempts: 1 } });
     const repo = makeRepo(client);
 
@@ -69,26 +69,33 @@ describe('DynamoDbApproverRepository', () => {
     expect(client.send).toHaveBeenCalledTimes(1);
     const [command] = client.send.mock.calls[0];
     expect(command).toBeInstanceOf(UpdateCommand);
+    // counter can never reach the limit here — the lockout transition owns 3
     expect(command.input.ConditionExpression).toContain('attempts <');
     expect(command.input.UpdateExpression).toBe('SET attempts = attempts + :one');
   });
 
-  it('atomically locks the token out when the counter reaches the limit (secondary conditional write)', async () => {
+  it('atomically locks the token out on the 3rd failure in a SINGLE conditional update (no live counter=3 state)', async () => {
     const client = fakeClient();
+    // common increment fails (counter already at limitMinusOne) → atomic
+    // transition write sets attempts=3 AND tokenStatus=locks together
     client.send
-      .mockResolvedValueOnce({ Attributes: { attempts: 3 } }) // counter reaches 3
-      .mockResolvedValueOnce({}); // durable lockout set
+      .mockRejectedValueOnce({ name: 'ConditionalCheckFailedException' })
+      .mockResolvedValueOnce({});
     const repo = makeRepo(client);
 
     const result = await repo.incrementAttempts('req-1', 'bob@example.com');
 
     expect(result).toEqual({ attempts: 3, lockedOut: true });
     expect(client.send).toHaveBeenCalledTimes(2);
-    const [incr, lockout] = client.send.mock.calls.map(([c]) => c);
+    const [incr, transition] = client.send.mock.calls.map(([c]) => c);
     expect(incr).toBeInstanceOf(UpdateCommand);
-    expect(lockout).toBeInstanceOf(UpdateCommand);
-    expect(lockout.input.UpdateExpression).toBe('SET tokenStatus = :locked');
-    expect(lockout.input.ConditionExpression).toBe('tokenStatus = :active');
+    expect(transition).toBeInstanceOf(UpdateCommand);
+    // ONE atomic update: increment AND lockout land in the same write, guarded
+    // by `attempts = :limitMinusOne` — so no overshoot and no ACTIVE counter=3.
+    expect(transition.input.UpdateExpression).toBe(
+      'SET attempts = attempts + :one, tokenStatus = :locked'
+    );
+    expect(transition.input.ConditionExpression).toContain('attempts =');
   });
 
   it('treats a failed conditional increment as locked (no lost update / no overshoot)', async () => {

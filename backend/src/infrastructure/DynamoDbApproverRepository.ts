@@ -31,10 +31,12 @@ function isConditionalCheckFailed(err: unknown): boolean {
  *
  * The lockout state lives on the DURABLE approver item (`APPR#<email>`), never
  * on the OTP TTL item, so table TTL cleanup never deletes approval/status data
- * (design-concurrency §1/§6). Failed-attempt increments are conditional
- * compare-and-swap (`attempts < 3` AND token still `ACTIVE`), so concurrent
- * wrong submissions cannot overshoot the counter; when the counter reaches the
- * limit the token is durably set to `INVALIDATED_LOCKOUT`.
+ * (design-concurrency §1/§6). Attempts are incremented under a conditional
+ * CAS (`attempts < limitMinusOne` AND token still `ACTIVE`) so concurrent wrong
+ * submissions can never overshoot the counter, and the counter NEVER reaches
+ * the limit while the token is still `ACTIVE`: reaching the limit and setting
+ * `INVALIDATED_LOCKOUT` happen in a SINGLE atomic conditional update, so there
+ * is no window where a token is live with the counter exhausted.
  */
 export class DynamoDbApproverRepository implements ApproverRepository {
   constructor(private readonly env: ApproverRepositoryEnv) {}
@@ -56,48 +58,65 @@ export class DynamoDbApproverRepository implements ApproverRepository {
   }
 
   async incrementAttempts(requestId: string, email: string): Promise<AttemptIncrement> {
-    let result: { Attributes?: Record<string, unknown> };
+    // COMMON PATH (failures 1 and 2): increment attempts while the counter is
+    // BELOW `limitMinusOne`, so attempts can never reach 3 here — the value 3
+    // is only ever written together with the lockout (next block). If the
+    // counter is already at `limitMinusOne` (i.e. the 3rd failure), or another
+    // writer beat us, the condition fails and we fall through to the atomic
+    // lockout transition.
     try {
-      result = (await this.env.documentClient.send(
+      const result = (await this.env.documentClient.send(
         new UpdateCommand({
           TableName: this.env.tableName,
           Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
           UpdateExpression: 'SET attempts = attempts + :one',
           ConditionExpression:
-            'tokenStatus = :active AND attempts < :limit AND attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)',
+            'tokenStatus = :active AND attempts < :limitMinusOne AND attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)',
           ExpressionAttributeValues: {
             ':one': 1,
             ':active': 'ACTIVE',
-            ':limit': OTP_LOCKOUT_LIMIT,
+            ':limitMinusOne': OTP_LOCKOUT_LIMIT - 1,
           },
           ReturnValues: 'ALL_NEW',
         })
       )) as { Attributes?: Record<string, unknown> };
+      return { attempts: Number(result.Attributes?.attempts ?? 0), lockedOut: false };
     } catch (err) {
-      // The conditional write failed (already locked / already acted): treat as
-      // locked so the gate can no longer proceed.
+      if (!isConditionalCheckFailed(err)) throw err;
+    }
+
+    // LOCKOUT TRANSITION (the 3rd failure): ONE atomic conditional update sets
+    // attempts = attempts + 1 (2 → 3) AND tokenStatus = INVALIDATED_LOCKOUT
+    // together, guarded by `attempts = :limitMinusOne`. Only the single writer
+    // that observed attempts == 2 can win; a concurrent rival gets
+    // ConditionalCheckFailed and is treated as already locked. There is NO
+    // instant where attempts == 3 while the token is still ACTIVE. The token
+    // can never exceed the limit (no overshoot).
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
+          UpdateExpression: 'SET attempts = attempts + :one, tokenStatus = :locked',
+          ConditionExpression:
+            'tokenStatus = :active AND attempts = :limitMinusOne AND attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)',
+          ExpressionAttributeValues: {
+            ':one': 1,
+            ':locked': 'INVALIDATED_LOCKOUT',
+            ':active': 'ACTIVE',
+            ':limitMinusOne': OTP_LOCKOUT_LIMIT - 1,
+          },
+        })
+      );
+      return { attempts: OTP_LOCKOUT_LIMIT, lockedOut: true };
+    } catch (err) {
+      // Another writer already reached the counter limit and transitioned to
+      // lockout (or the token is no longer ACTIVE): treat as locked.
       if (isConditionalCheckFailed(err)) {
         return { attempts: OTP_LOCKOUT_LIMIT, lockedOut: true };
       }
       throw err;
     }
-
-    const attempts = Number(result.Attributes?.attempts ?? 0);
-    if (attempts >= OTP_LOCKOUT_LIMIT) {
-      // Durable, idempotent lockout: only the write that reached the limit wins
-      // the transition; a second attempt is a no-op because tokenStatus != ACTIVE.
-      await this.env.documentClient.send(
-        new UpdateCommand({
-          TableName: this.env.tableName,
-          Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
-          UpdateExpression: 'SET tokenStatus = :locked',
-          ConditionExpression: 'tokenStatus = :active',
-          ExpressionAttributeValues: { ':locked': 'INVALIDATED_LOCKOUT', ':active': 'ACTIVE' },
-        })
-      );
-      return { attempts, lockedOut: true };
-    }
-    return { attempts, lockedOut: false };
   }
 
   async resetAttemptsIfActive(requestId: string, email: string): Promise<boolean> {
