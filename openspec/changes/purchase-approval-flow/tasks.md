@@ -74,14 +74,14 @@ Verify: suite green, >=60% coverage.
 
 > **Concept**: The aggregate. Snapshots `createdBy`/`approvers` names at creation (evidence must not break if identity changes, Decisions 3). Global state `PENDING`->`COMPLETED|REJECTED` dominates all gates (COMPLETED > REJECTED > PENDING). Tokens + mail are issued via ports implemented in PR #3.
 
-- [ ] 2.1 `domain/` `PurchaseRequest`, `Approver`, enums `GlobalStatus`, `Amount` value object (positive, <=2 decimals, USD) (design-api `RequestShape`).
-- [ ] 2.2 `application/CreateRequest.ts`: validate title/description/amount/3 distinct approvers != requester; resolve emails against `UserRegistryPort` (unknown → 404); snapshot names; persist `REQ` + 3 `APPR#<email>` records (PENDING); emit `TokenIssuerPort` + `MailPort` calls (implemented PR #3).
-- [ ] 2.3 `application/ListRequests.ts` (newest first via GSI1) + `GetRequestDetail.ts` (404 unknown; per-approver status view).
-- [ ] 2.4 `infrastructure/DynamoDbRequestRepository.ts` (REQ + APPR records, GSI list, detail with approver query).
-- [ ] 2.5 `api/handlers/purchaseRequest.ts`: `create` (201/400/404), `list` (200), `detail` (200/404).
-- [ ] 2.6 Unit tests: validation scenarios (unknown email, duplicate approver, requester==approver, bad amount/count — spec R1); snapshots; global-state precedence (R2).
-- [ ] 2.7 Integration (dynamodb-local): create writes REQ + 3 APPR + list ordering + detail.
-- [ ] 2.8 Append DECISIONS.md (aggregate, positional role, naive snapshot).
+- [x] 2.1 `domain/` `PurchaseRequest`, `Approver`, enums `GlobalStatus`, `Amount` value object (positive, <=2 decimals, USD) (design-api `RequestShape`).
+- [x] 2.2 `application/CreateRequest.ts`: validate title/description/amount/3 distinct approvers != requester; resolve emails against `UserRegistryPort` (unknown → 404); snapshot names; persist `REQ` + 3 `APPR#<email>` records (PENDING); emit `TokenIssuerPort` + `MailPort` calls (implemented PR #3).
+- [x] 2.3 `application/ListRequests.ts` (newest first via GSI1) + `GetRequestDetail.ts` (404 unknown; per-approver status view).
+- [x] 2.4 `infrastructure/DynamoDbRequestRepository.ts` (REQ + APPR records, GSI list, detail with approver query).
+- [x] 2.5 `api/handlers/purchaseRequest.ts`: `create` (201/400/404), `list` (200), `detail` (200/404).
+- [x] 2.6 Unit tests: validation scenarios (unknown email, duplicate approver, requester==approver, bad amount/count — spec R1); snapshots; global-state precedence (R2).
+- [x] 2.7 Integration (dynamodb-local): create writes REQ + 3 APPR + list ordering + detail.
+- [x] 2.8 Append DECISIONS.md (aggregate, positional role, naive snapshot).
 
 Verify: suite green, >=60%.
 
