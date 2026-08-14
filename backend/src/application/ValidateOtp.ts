@@ -21,11 +21,12 @@ export interface ValidateOtpResult {
  *
  * Runs the gate chain, then enforces expiry IN CODE against the stored TTL
  * value — DynamoDB TTL is cleanup, not the expiry gate (R4). A correct code is
- * compared against the stored SHA-256 digest and CONSUMED (one-time use). A
- * wrong code atomically increments the failed-attempt counter: on the 3rd
- * failure the approach's token is durably invalidated (`INVALIDATED_LOCKOUT`)
- * and even the correct code is rejected (R5). Failures → 401 with
- * `{ attemptsRemaining }`; the 3rd failure → 403.
+ * compared against the stored SHA-256 digest and CONSUMED via an atomic
+ * compare-and-swap delete (one-time use, R4). A wrong code atomically
+ * increments the failed-attempt counter: on the 3rd failure the approach's
+ * token is durably invalidated (`INVALIDATED_LOCKOUT`) and even the correct
+ * code is rejected (R5). Failures → 401 with `{ attemptsRemaining }`; the 3rd
+ * failure → 403.
  *
  * Pure application logic — no framework or AWS dependencies.
  */
@@ -67,8 +68,20 @@ export class ValidateOtp {
       throw new WrongOtpError('Incorrect code', OTP_LOCKOUT_LIMIT - attempts);
     }
 
-    // Consume the OTP so it is single-use (R4).
-    await this.otps.deleteOtp(command.requestId, approver.email);
+    // Consume the OTP so it is single-use (R4). The consume is a compare-and-
+    // swap DELETE keyed to this submitted code's hash: under concurrent
+    // identical submissions only ONE caller wins the delete and returns valid;
+    // the losers (item already gone → condition false) are treated as
+    // already-consumed → expired (410). A code can never validate twice.
+    const consumed = await this.otps.consumeOtp(
+      command.requestId,
+      approver.email,
+      submittedHash,
+      nowEpoch
+    );
+    if (!consumed) {
+      throw new ExpiredOtpError('The OTP has already been used or expired');
+    }
     return { valid: true };
   }
 }

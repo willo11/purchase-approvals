@@ -52,13 +52,13 @@ describe('ValidateOtp use case (spec R4)', () => {
     const result = await useCase.execute(CMD);
 
     expect(result).toEqual({ valid: true });
-    // OTP consumed
-    expect(otps.deleteCalls).toBe(1);
+    // OTP consumed via the atomic compare-and-swap consume
+    expect(otps.consumeCalls).toBe(1);
     expect(otps.stored('req-1', 'bob@example.com')).toBeUndefined();
 
     // a second validation of the same code now fails as expired (consumed)
     await expect(useCase.execute(CMD)).rejects.toThrow(ExpiredOtpError);
-    expect(otps.deleteCalls).toBe(1); // no new consume
+    expect(otps.consumeCalls).toBe(1); // no new consume succeeds
   });
 
   it('rejects a correct code when the OTP is expired IN CODE even before TTL cleanup (R4)', async () => {
@@ -66,7 +66,7 @@ describe('ValidateOtp use case (spec R4)', () => {
     seedStoredCode(otps, '123456', false); // expiresAt in the past, row still exists
 
     await expect(useCase.execute(CMD)).rejects.toThrow(ExpiredOtpError);
-    expect(otps.deleteCalls).toBe(0); // not consumed
+    expect(otps.consumeCalls).toBe(0); // not consumed
   });
 
   it('rejects a malformed code with InvalidOtpCodeError (→400)', async () => {
@@ -110,7 +110,7 @@ describe('ValidateOtp failed attempts & lockout (spec R5)', () => {
 
     // even the CORRECT code is now rejected (gate sees lockout before OTP check)
     await expect(useCase.execute(CMD)).rejects.toThrow(LockedOutError);
-    expect(otps.deleteCalls).toBe(0);
+    expect(otps.consumeCalls).toBe(0);
   });
 
   it('does not overshoot the counter: attempts never exceeds lockout limit', async () => {

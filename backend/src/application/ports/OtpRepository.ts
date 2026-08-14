@@ -27,6 +27,18 @@ export interface OtpRepository {
 
   getOtp(requestId: string, email: string): Promise<StoredOtp | undefined>;
 
-  /** Consumes the OTP (one-time use) on a successful validation (spec R4). */
-  deleteOtp(requestId: string, email: string): Promise<void>;
+  /**
+   * Atomically consumes the OTP (one-time use, spec R4). This is a
+   * compare-and-swap DELETE: it only succeeds when the stored item still holds
+   * exactly `expectedHash` and has not yet expired. With concurrent identical
+   * correct submissions, only ONE caller can ever win the delete — the losers
+   * get `false` and are treated as already-consumed (expired), so a code can
+   * never validate twice.
+   */
+  consumeOtp(
+    requestId: string,
+    email: string,
+    expectedHash: string,
+    nowEpochSeconds: number
+  ): Promise<boolean>;
 }

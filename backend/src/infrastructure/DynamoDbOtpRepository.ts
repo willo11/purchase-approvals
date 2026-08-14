@@ -15,6 +15,10 @@ function otpKey(requestId: string, email: string): string {
   return `OTP#${requestId}#${email}`;
 }
 
+function isConditionalCheckFailed(err: unknown): boolean {
+  return (err as { name?: string })?.name === 'ConditionalCheckFailedException';
+}
+
 export interface OtpRepositoryEnv {
   tableName: string;
   documentClient: DynamoDBDocumentClient;
@@ -27,6 +31,8 @@ export interface OtpRepositoryEnv {
  * table TTL attribute `otpExpiresAt` set to the in-code expiry (3 min), so
  * DynamoDB deletes expired OTPs as cleanup while the DURABLE approver record
  * is never touched (spec R3/R4, design-concurrency §1/§6, Decision 4).
+ * Consumption is a conditional compare-and-swap DELETE so one-time use holds
+ * under concurrency (spec R4).
  */
 export class DynamoDbOtpRepository implements OtpRepository {
   constructor(private readonly env: OtpRepositoryEnv) {}
@@ -64,14 +70,34 @@ export class DynamoDbOtpRepository implements OtpRepository {
     return { otpHash: String(item.otpHash), otpExpiresAt: Number(item.otpExpiresAt) };
   }
 
-  async deleteOtp(requestId: string, email: string): Promise<void> {
+  async consumeOtp(
+    requestId: string,
+    email: string,
+    expectedHash: string,
+    nowEpochSeconds: number
+  ): Promise<boolean> {
     const key = otpKey(requestId, email);
-    await this.env.documentClient.send(
-      new DeleteCommand({
-        TableName: this.env.tableName,
-        Key: { PK: key, SK: key },
-      })
-    );
+    try {
+      // Compare-and-swap DELETE: succeeds only while the item still holds
+      // `expectedHash` and is unexpired. A concurrent identical submit after
+      // this item is gone (or on a mismatched/expired OTP) fails the condition,
+      // so only ONE submission can ever consume → one-time use (spec R4).
+      await this.env.documentClient.send(
+        new DeleteCommand({
+          TableName: this.env.tableName,
+          Key: { PK: key, SK: key },
+          ConditionExpression: 'otpHash = :expectedHash AND otpExpiresAt > :now',
+          ExpressionAttributeValues: {
+            ':expectedHash': expectedHash,
+            ':now': nowEpochSeconds,
+          },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false; // already consumed / not ours
+      throw err;
+    }
   }
 }
 

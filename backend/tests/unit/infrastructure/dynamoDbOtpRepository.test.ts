@@ -57,15 +57,34 @@ describe('DynamoDbOtpRepository (spec R3/R4)', () => {
     expect(g2).toBeInstanceOf(GetCommand);
   });
 
-  it('deleteOtp removes the item by key (consume, one-time use)', async () => {
+  it('consumeOtp is a compare-and-swap delete: consumes only the matching, unexpired digest', async () => {
     const client = fakeClient();
-    client.send.mockResolvedValue({});
+    client.send.mockResolvedValue({}); // DeleteCommand succeeds → condition met
     const repo = makeRepo(client);
 
-    await repo.deleteOtp('req-1', 'bob@example.com');
+    await expect(
+      repo.consumeOtp('req-1', 'bob@example.com', 'abc123', 1800000000)
+    ).resolves.toBe(true);
 
     const [command] = client.send.mock.calls[0];
     expect(command).toBeInstanceOf(DeleteCommand);
     expect(command.input.Key).toEqual({ PK: KEY, SK: KEY });
+    expect(command.input.ConditionExpression).toBe(
+      'otpHash = :expectedHash AND otpExpiresAt > :now'
+    );
+    expect(command.input.ExpressionAttributeValues).toEqual({
+      ':expectedHash': 'abc123',
+      ':now': 1800000000,
+    });
+  });
+
+  it('consumeOtp returns false when the item is gone or does not match (already consumed / wrong code)', async () => {
+    const client = fakeClient();
+    client.send.mockRejectedValue({ name: 'ConditionalCheckFailedException' });
+    const repo = makeRepo(client);
+
+    await expect(
+      repo.consumeOtp('req-1', 'bob@example.com', 'abc123', 1800000000)
+    ).resolves.toBe(false);
   });
 });

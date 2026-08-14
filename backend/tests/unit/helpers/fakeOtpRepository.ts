@@ -21,7 +21,7 @@ export class FakeOtpRepository implements OtpRepository {
   private store = new Map<string, StoredOtp>();
   putCalls = 0;
   getCalls = 0;
-  deleteCalls = 0;
+  consumeCalls = 0;
   lastPut?: PutRecord;
 
   async putOtp(
@@ -43,9 +43,23 @@ export class FakeOtpRepository implements OtpRepository {
     return this.store.get(`${requestId}#${email}`);
   }
 
-  async deleteOtp(requestId: string, email: string): Promise<void> {
-    this.deleteCalls += 1;
-    this.store.delete(`${requestId}#${email}`);
+  async consumeOtp(
+    requestId: string,
+    email: string,
+    expectedHash: string,
+    nowEpochSeconds: number
+  ): Promise<boolean> {
+    this.consumeCalls += 1;
+    const key = `${requestId}#${email}`;
+    const stored = this.store.get(key);
+    // Mirror the real compare-and-swap DELETE: consume only if the digest
+    // matches AND the code is unexpired. Otherwise (already gone / mismatch /
+    // expired) the consume is refused so the code cannot validate twice.
+    if (!stored || stored.otpHash !== expectedHash || stored.otpExpiresAt <= nowEpochSeconds) {
+      return false;
+    }
+    this.store.delete(key);
+    return true;
   }
 
   stored(requestId: string, email: string): StoredOtp | undefined {
