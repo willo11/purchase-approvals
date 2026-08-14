@@ -67,6 +67,27 @@ functions:
           path: api/users
           method: get
 
+  create-request:
+    handler: dist/api/handlers/purchaseRequest.create
+    events:
+      - http:
+          path: api/purchase-requests
+          method: post
+
+  list-requests:
+    handler: dist/api/handlers/purchaseRequest.list
+    events:
+      - http:
+          path: api/purchase-requests
+          method: get
+
+  request-detail:
+    handler: dist/api/handlers/purchaseRequest.detail
+    events:
+      - http:
+          path: api/purchase-requests/{id}
+          method: get
+
 resources:
   Resources:
     PurchaseApprovalsTable:
