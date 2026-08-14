@@ -4,9 +4,22 @@ import { RegisterUser } from '../../../src/application/RegisterUser';
 import { ListUsers } from '../../../src/application/ListUsers';
 import { FakeUserRepository } from '../helpers/fakeUserRepository';
 import { User } from '../../../src/domain/User';
+import type { UserRepository } from '../../../src/application/ports/UserRepository';
 
 function postEvent(body: unknown): APIGatewayProxyEvent {
   return { body: JSON.stringify(body) } as unknown as APIGatewayProxyEvent;
+}
+
+/** Port stub that throws a NON-domain error, to prove the handler maps unknown failures to 500. */
+function throwingRepo(): UserRepository {
+  return {
+    async save() {
+      throw new Error('DynamoDB unreachable');
+    },
+    async listAll() {
+      throw new Error('DynamoDB unreachable');
+    },
+  };
 }
 
 describe('createUser handler (POST /api/usuarios)', () => {
@@ -69,6 +82,32 @@ describe('createUser handler (POST /api/usuarios)', () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it('returns 500 when the repository fails with a non-domain error', async () => {
+    const handler = buildCreateUser(new RegisterUser(throwingRepo()));
+
+    const response = await handler(postEvent({ name: 'Ana', email: 'ana@example.com' }));
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body).error).toBe('Error');
+  });
+
+  it('ignores a password field in the payload (R1: no password accepted or stored)', async () => {
+    const repo = new FakeUserRepository();
+    const handler = buildCreateUser(new RegisterUser(repo));
+
+    const response = await handler(
+      postEvent({ name: 'Ana', email: 'ana@example.com', password: 'sup3rsecret' })
+    );
+
+    expect(response.statusCode).toBe(201);
+    // Only the user shape is returned — the password is never read or persisted.
+    expect(JSON.parse(response.body)).toEqual({
+      name: 'Ana',
+      email: 'ana@example.com',
+      cargo: 'Empleado',
+    });
+  });
 });
 
 describe('listUsers handler (GET /api/usuarios)', () => {
@@ -95,5 +134,13 @@ describe('listUsers handler (GET /api/usuarios)', () => {
       { name: 'Ana', email: 'ana@example.com', cargo: 'Empleado' },
       { name: 'Bob', email: 'bob@example.com', cargo: 'Gerente' },
     ]);
+  });
+
+  it('returns 500 when the repository fails with a non-domain error', async () => {
+    const handler = buildListUsers(new ListUsers(throwingRepo()));
+
+    const response = await handler();
+
+    expect(response.statusCode).toBe(500);
   });
 });
