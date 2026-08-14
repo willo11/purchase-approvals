@@ -1,0 +1,84 @@
+service: purchase-approvals-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  environment:
+    TABLE_NAME: ${self:custom.tableName}
+    EVIDENCE_BUCKET: ${self:custom.bucketName}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:Query
+        - dynamodb:Scan
+      Resource:
+        - !GetAtt PurchaseApprovalsTable.Arn
+        - !Join ['', [!GetAtt PurchaseApprovalsTable.Arn, '/index/*']]
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+      Resource: !Join ['', [!GetAtt PurchaseApprovalsEvidenceBucket.Arn, '/*']]
+
+custom:
+  tableName: purchase-approvals-${self:provider.stage}
+  # NOTE: S3 bucket names are globally unique. If `purchase-approvals-evidence-<stage>`
+  # is taken, suffix the name at deploy time (PR #8) rather than changing the key schema.
+  bucketName: purchase-approvals-evidence-${self:provider.stage}
+
+plugins:
+  - serverless-offline
+
+functions:
+  health:
+    handler: dist/api/health.handler
+    events:
+      - http:
+          path: health
+          method: get
+
+resources:
+  Resources:
+    PurchaseApprovalsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+          - AttributeName: gsi1pk
+            AttributeType: S
+          - AttributeName: gsi1sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: GSI1
+            KeySchema:
+              - AttributeName: gsi1pk
+                KeyType: HASH
+              - AttributeName: gsi1sk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        TimeToLiveSpecification:
+          AttributeName: otpExpiresAt
+          Enabled: true
+    PurchaseApprovalsEvidenceBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
