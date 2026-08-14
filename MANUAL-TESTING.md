@@ -32,17 +32,13 @@ Variables que te importan:
 ### 2. Levantar DynamoDB local + crear la tabla
 
 ```bash
-pnpm -C backend run db:up   # levanta dynamodb-local en :8000 (Docker)
-
-aws --endpoint-url http://localhost:8000 dynamodb create-table \
-  --table-name purchase-approvals-dev \
-  --attribute-definitions AttributeName=PK,AttributeType=S AttributeName=SK,AttributeType=S AttributeName=gsi1pk,AttributeType=S AttributeName=gsi1sk,AttributeType=S \
-  --key-schema AttributeName=PK,KeyType=HASH AttributeName=SK,KeyType=RANGE \
-  --global-secondary-indexes IndexName=GSI1,KeySchema=AttributeName=gsi1pk,KeyType=HASH,KeySchema=AttributeName=gsi1sk,KeyType=RANGE,Projection=ProjectionType=ALL \
-  --billing-mode PAY_PER_REQUEST
+pnpm -C backend run db:up             # levanta dynamodb-local en :8000 (Docker)
+pnpm -C backend run db:create-table   # crea purchase-approvals-dev (sin AWS CLI)
 ```
 
-> ¿No tenés `aws` CLI? Anteponé credenciales dummy: `AWS_ACCESS_KEY_ID=x AWS_SECRET_ACCESS_KEY=x aws ...`.
+`db:create-table` lee el schema de tu `serverless.yml` (PK/SK + GSI1 + TTL) y lo crea
+localmente con `@aws-sdk`. Es idempotente (si ya existe te avisa). No necesitás el
+AWS CLI.
 
 ### ¿Por qué hay que crear la tabla a mano (solo localmente)?
 
