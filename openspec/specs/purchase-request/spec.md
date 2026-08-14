@@ -24,7 +24,7 @@ The system MUST create a request via `POST /api/purchase-requests` with: request
 
 - GIVEN a payload with an approver email not present in `user-registry`
 - WHEN `POST /api/purchase-requests` is called
-- THEN HTTP 400 is returned
+- THEN HTTP 404 is returned
 - AND no request or approver records are persisted
 
 #### Scenario: Duplicate approver rejected
