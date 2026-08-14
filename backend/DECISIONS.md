@@ -105,3 +105,34 @@
 - **Why**: email is inherently unique and re-verified by `Email` format validation; the brief lists three roles but they are positional (Decision 9), so `cargo` needs no required enum — a default keeps the payload ergonomic; email-only identity (Decision 10) keeps the demo deliverable and documents auth as out of scope.
 - **Duplicate prevention**: enforced by the database, not application memory — the repository `PutItem` uses `ConditionExpression: attribute_not_exists(PK)`, so a concurrent or double registration maps to 409 with zero chance of overwrite.
 - **Interview line**: "The natural key is the email and the uniqueness constraint lives in a conditional PutItem — I never read-then-write to check for duplicates; DynamoDB does that atomically."
+
+---
+
+## 17. Design patterns in the implementation (Clean Code reference — pre-interview)
+
+> Compact map of the patterns actually used in the user-registry PR, with the one-liner
+> to defend each. These are not studied abstractions: each one is alive in the code.
+
+| Pattern | Role in the code | File | Interview one-liner |
+|---------|------------------|------|--------------------|
+| **Repository (port)** | Abstrae el acceso a datos: el caso de uso habla con una interfaz, no con DynamoDB | `application/ports/UserRepository.ts` | "The use case depends on a contract (port), not on DynamoDB — the storage engine is swappable." |
+| **Adapter** | Traduce el contrato al mundo exterior real; la única capa que sabe `@aws-sdk` | `infrastructure/DynamoDbUserRepository.ts` | "The adapter is the translator: the domain speaks its own language, only the adapter speaks DynamoDB." |
+| **Ports & Adapters / Hexagonal** | El dominio en el centro (pura lógica), los adaptadores afuera para infraestructura | layering global (domain/application/infrastructure/api) | "The hexagon is the domain; I can swap the database without the core noticing." |
+| **Entity** | Objeto con identidad propia, identificado por su email | `domain/User.ts` | User is identified by identity (its email), not by its attributes." |
+| **Value Object** | Objeto inmutable que se valida solo y se compara por valor; normaliza `ANA@` → `ana@` | `domain/values/Email.ts` | "Email is a value object: it carries its own validation and normalization, so an invalid format can't exist." |
+| **Application Service / Use Case** | Orquesta UNA tarea de negocio sin saber "cómo" | `application/RegisterUser.ts` | "The use case holds the business rule (duplicate→409) and ignores the technology (DynamoDB)." |
+| **Factory (composition root)** | Construye el adapter y sus dependencias | `makeUserRepository()` | "makeUserRepository is the composition root — the only place that wires the adapter from the environment." |
+| **Dependency Injection** | El handler recibe el adapter ya armado | `constructor(private readonly env)` | "Dependencies are injected, not imported — that's what lets tests swap a fake repository." |
+| **Mapper (error → HTTP)** | Traduce errores tipados del dominio a códigos HTTP de forma declarativa | handler `userRegistry.ts` + tabla de `design-api.md` | "The handler is a thin error→HTTP mapper; it never embeds business rules or status-code if/else." |
+
+**The phrase that carries the whole argument** — why layers at all:
+
+> "The core changes when the BUSINESS changes; the adapter changes when the PROVIER
+> changes (DynamoDB); the handler changes when the HTTP CONTRACT changes. If I mixed all
+> three, any change would force me to touch storage + business + HTTP at once. Separated,
+> each layer is unit-testable on its own."
+
+**Proof this runs in practice** (say this if asked "how do you know it works?"):
+- Unit tests inject a **fake repository** (same port) to test the use case with no AWS.
+- Integration tests inject the **real DynamoDB adapter** for an end-to-end round-trip.
+- Same use case, two storage backends, zero changes to the domain — that's the pattern earning its keep.
