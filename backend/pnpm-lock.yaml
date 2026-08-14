@@ -36,6 +36,9 @@ importers:
       serverless:
         specifier: ^3.38.0
         version: 3.40.0(@types/node@20.19.43)
+      serverless-dotenv-plugin:
+        specifier: ^6.0.0
+        version: 6.0.0(serverless@3.40.0(@types/node@20.19.43))
       serverless-offline:
         specifier: ^13.8.0
         version: 13.10.1(serverless@3.40.0(@types/node@20.19.43))
@@ -2796,6 +2799,11 @@ packages:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
     engines: {node: '>=10'}
     hasBin: true
+
+  serverless-dotenv-plugin@6.0.0:
+    resolution: {integrity: sha512-8tLVNwHfDO0sBz6+m+DLTZquRk0AZq9rzqk3kphm1iIWKfan9R7RKt4hdq3eQ0kmDoqzudjPYBEXAJ5bUNKeGQ==}
+    peerDependencies:
+      serverless: 1 || 2 || pre-3 || 3
 
   serverless-offline@13.10.1:
     resolution: {integrity: sha512-8OfK5xIC1S5yRZAZDuNQgdr5f+LNpVKsFaFxdRslrentD6PuonH+fRYBSHS+lBKrYQGSKNotG4EEPs03nvwFrg==}
@@ -6941,6 +6949,13 @@ snapshots:
   semver@6.3.1: {}
 
   semver@7.8.5: {}
+
+  serverless-dotenv-plugin@6.0.0(serverless@3.40.0(@types/node@20.19.43)):
+    dependencies:
+      chalk: 4.1.2
+      dotenv: 16.6.1
+      dotenv-expand: 10.0.0
+      serverless: 3.40.0(@types/node@20.19.43)
 
   serverless-offline@13.10.1(serverless@3.40.0(@types/node@20.19.43)):
     dependencies:

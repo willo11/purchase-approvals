@@ -57,14 +57,14 @@ Verify: `npm test` in backend runs, `npm run build` in each frontend remote prod
 
 > **Concept**: The registry is the identity source for every other capability. Email = natural key (`PK=USER#<email>`). Role is POSITIONAL (requester/approver derived from where a user is referenced), not stored. No password — email-only demo identity (Decisions 9,10).
 
-- [ ] 1.1 `domain/User.ts` (name, email, cargo) + `domain/values/Email.ts` + `domain/enums/` as needed — zero framework deps.
-- [ ] 1.2 `application/RegisterUser.ts` use-case (empty name/email → 400; duplicate → 409) + its `UserRepository` port (assert conditional `PutItem`, no overwrite).
-- [ ] 1.3 `application/ListUsers.ts` use-case + port (creation order).
-- [ ] 1.4 `infrastructure/DynamoDbUserRepository.ts` (put w/ dup prevention `ConditionExpression`, query via GSI).
-- [ ] 1.5 `api/handlers/userRegistry.ts`: `createUser` → 201/400/409, `listUsers` → 200 via error→HTTP mapper (design-api policy).
-- [ ] 1.6 Unit tests: fluent fake repo; `POST /api/usuarios` 201/409/400 (spec R1 scenarios); list empty + non-empty (R2).
-- [ ] 1.7 Integration (dynamodb-local): register + duplicate + list real round-trip.
-- [ ] 1.8 Append DECISIONS.md entry (email key, cargo optional default, no-password).
+- [x] 1.1 `domain/User.ts` (name, email, cargo) + `domain/values/Email.ts` + `domain/enums/` as needed — zero framework deps.
+- [x] 1.2 `application/RegisterUser.ts` use-case (empty name/email → 400; duplicate → 409) + its `UserRepository` port (assert conditional `PutItem`, no overwrite).
+- [x] 1.3 `application/ListUsers.ts` use-case + port (creation order).
+- [x] 1.4 `infrastructure/DynamoDbUserRepository.ts` (put w/ dup prevention `ConditionExpression`, query via GSI).
+- [x] 1.5 `api/handlers/userRegistry.ts`: `createUser` → 201/400/409, `listUsers` → 200 via error→HTTP mapper (design-api policy).
+- [x] 1.6 Unit tests: fluent fake repo; `POST /api/usuarios` 201/409/400 (spec R1 scenarios); list empty + non-empty (R2).
+- [x] 1.7 Integration (dynamodb-local): register + duplicate + list real round-trip.
+- [x] 1.8 Append DECISIONS.md entry (email key, cargo optional default, no-password).
 
 Verify: suite green, >=60% coverage.
 

@@ -15,7 +15,8 @@
     "test:unit": "jest --coverage",
     "test:integration": "DYNAMODB_LOCAL=http://localhost:8000 jest --runInBand --coverage=false",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "db:create-table": "node --env-file=.env scripts/create-local-table.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.600.0",
@@ -29,6 +30,7 @@
     "@types/node": "^20.14.10",
     "jest": "^29.7.0",
     "serverless": "^3.38.0",
+    "serverless-dotenv-plugin": "^6.0.0",
     "serverless-offline": "^13.8.0",
     "ts-jest": "^29.2.3",
     "ts-node": "^10.9.2",
