@@ -2,7 +2,7 @@ change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
 current_phase: apply
-current_pr: 3
+current_pr: 4
 
 dag:
   proposal: done
@@ -15,9 +15,9 @@ dag:
 
 branch:
   base: main
-  active: feat/approver-otp
-  applied_prs: [0, 1, 2]
-  pending_prs: [3, 4, 5, 6, 7, 8]
+  active: feat/approval-signature
+  applied_prs: [0, 1, 2, 3]
+  pending_prs: [4, 5, 6, 7, 8]
 
 notes: |
   PR #0 bootstrap merged into main (feat/bootstrap promoted to main).
@@ -26,10 +26,6 @@ notes: |
   PutItem + GSI1), API handlers, unit 95% + integration, robustness tests
   (500-path, password-ignored). Dev tooling: backend/.env (+serverless-dotenv-plugin),
   MANUAL-TESTING.md, db:create-table script (no AWS CLI).
-  Native dispatcher was blocked ("specs **/spec.md missing") because per-change
-  delta specs lived only at openspec/specs/*. Fixed by creating
-  openspec/changes/purchase-approval-flow/specs/{domain}/spec.md (7 delta specs,
-  all ADDED). Dispatcher now reports next=apply.
   Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
 
   PR #2 purchase-request MERGED — the aggregate (PurchaseRequest/Approver/
@@ -38,9 +34,19 @@ notes: |
   newest-first). TokenIssuerPort/MailPort defined as interfaces with placeholders
   (InMemoryTokenIssuer, LogMailer) — real OTP/TTL + DB-backed mock-mail in PR #3.
   Fresh review caught + fixed a CRITICAL: token was issued TWICE per approver
-  (persisted token != mailed approver_token); now issued once and reused — the
-  PR #3 approve flow will resolve. Unknown approver email contract fixed to 404
-  (spec + design-api reconciled; implementation follows 404). fresh review also
-  flagged non-atomic 4-PutItem write — recommend TransactWriteItems in a later PR.
+  (persisted token != mailed approver_token); now issued once and reused.
+  Unknown approver email contract fixed to 404 (spec + design-api reconciled).
+  Create write hardened to TransactWriteItems (REQ + 3 APPR, one transaction).
 
-updated_at: 2026-08-14T21:45:00
+  PR #3 approver-otp MERGED — the access gate: Otp/Token value objects, OtpService
+  sha256(code+context) (plaintext never stored), OTP in its own TTL item
+  (OTP#<reqId>#<email>, 180s) + in-code expiry; gate chain terminal 410 / lockout 403
+  / token 404; atomic lockout folded into ONE conditional UpdateItem; MockMailRepo
+  + GET /mock-mail. Fresh review caught + fixed CRITICAL: consume was NOT atomic
+  (read-compare-delete) -> single-use R4 violated under concurrency; fixed with a
+  CAS DeleteCommand (ConditionExpression otpHash + otpExpiresAt). Concurrency
+  tests against dynamodb-local (5 parallel wrong -> attempts==3 + lockout; 5 parallel
+  correct -> exactly one valid:true). DECISIONS #19 (hardened), #20 (CAS vs idempotency
+  key), #21 (mock mail as outbox / SES swap). MANUAL-TESTING updated.
+
+updated_at: 2026-08-14T22:20:00

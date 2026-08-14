@@ -91,16 +91,16 @@ Verify: suite green, >=60%.
 
 > **Concept**: Access gate. OTP lives in its OWN TTL item (`OTP#<req>#<email>`, 3-min) so table TTL never deletes the durable approver record (Decisions 4). Expiry validated IN CODE; TTL is cleanup. Lockout (`tokenStatus=INVALIDATED_LOCKOUT`) lives on the durable approver item, set atomically when attempts reach 3. Gate chain: request terminal? -> approver lockout? -> token matches + OTP valid? (concurrency detail §2, §6).
 
-- [ ] 3.1 `domain/` OTP value object + `Token` (url-safe uuid) + `OtpService` (generate 6-digit, sha256 hash).
-- [ ] 3.2 Implement `TokenIssuerPort` (from 2.2): uuid per approver URL `https://<host>/approve?request_id=<id>&approver_token=<uuid>` (spec R1).
-- [ ] 3.3 `infrastructure/MockMailRepo` (MAIL type rows) implementing `MailPort`; `api/handlers/mockMail.ts` `list` → `GET /mock-mail` newest first (R2).
-- [ ] 3.4 `application/IssueOtp.ts` (R3/R7 gate chain: terminal 410, lockout 403, issues hash+TTL via mail).
-- [ ] 3.5 `application/ValidateOtp.ts` (R4/R5): in-code expiry, consume OTP on success, `attempts<3` conditional counter + atomic lockout at 3, `{attemptsRemaining}` on 401.
-- [ ] 3.6 `application/RegenerateOtp.ts` (R6): only if `tokenStatus=ACTIVE`, fresh hash+TTL, reset attempts.
-- [ ] 3.7 `infrastructure/DynamoDbApproverRepository.ts` + OTP repo (TTL attribute) + `api/handlers/otp.ts` (`issue`/`validate`/`regenerate`).
-- [ ] 3.8 Unit tests: gate precedence, unique tokens, hash-only storage, expiry-in-code before TTL cleanup, lockout at 3, regenerate-on-expired (spec R2/R4/R5/R6/R7).
-- [ ] 3.9 Integration (dynamodb-local): issue→validate→consume one-time; 3-fail lockout; regenerate path.
-- [ ] 3.10 DECISIONS.md (dedicated TTL item, in-code expiry, atomic lockout).
+- [x] 3.1 `domain/` OTP value object + `Token` (url-safe uuid) + `OtpService` (generate 6-digit, sha256 hash).
+- [x] 3.2 Implement `TokenIssuerPort` (from 2.2): uuid per approver URL `https://<host>/approve?request_id=<id>&approver_token=<uuid>` (spec R1).
+- [x] 3.3 `infrastructure/MockMailRepo` (MAIL type rows) implementing `MailPort`; `api/handlers/mockMail.ts` `list` → `GET /mock-mail` newest first (R2).
+- [x] 3.4 `application/IssueOtp.ts` (R3/R7 gate chain: terminal 410, lockout 403, issues hash+TTL via mail).
+- [x] 3.5 `application/ValidateOtp.ts` (R4/R5): in-code expiry, consume OTP on success, `attempts<3` conditional counter + atomic lockout at 3, `{attemptsRemaining}` on 401.
+- [x] 3.6 `application/RegenerateOtp.ts` (R6): only if `tokenStatus=ACTIVE`, fresh hash+TTL, reset attempts.
+- [x] 3.7 `infrastructure/DynamoDbApproverRepository.ts` + OTP repo (TTL attribute) + `api/handlers/otp.ts` (`issue`/`validate`/`regenerate`).
+- [x] 3.8 Unit tests: gate precedence, unique tokens, hash-only storage, expiry-in-code before TTL cleanup, lockout at 3, regenerate-on-expired (spec R2/R4/R5/R6/R7).
+- [x] 3.9 Integration (dynamodb-local): issue→validate→consume one-time; 3-fail lockout; regenerate path.
+- [x] 3.10 DECISIONS.md (dedicated TTL item, in-code expiry, atomic lockout).
 
 Verify: suite green, >=60%. Flag if near 800 — keep PDF handler out.
 

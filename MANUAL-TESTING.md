@@ -4,7 +4,7 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #2 — purchase-request (backend API)**. The frontend is NOT yet
+> Current status: **PR #3 — approver-otp (backend API)**. The frontend is NOT yet
 > connected to the backend (that lands in PR #6 requester-panel and PR #7 approver-flow),
 > so manual testing is, for now, 100% backend via `curl`.
 
@@ -149,6 +149,51 @@ approval token per approver (the real OTP/TTL + DB-backed mock-mail land in PR #
 
 ---
 
+### PR #3 — approver-otp (access gate) + `/mock-mail`
+
+The approval links and OTPs are not sent by email — they are recorded in the simulated
+mailbox (`GET /mock-mail`), which is the demo's inbox. Read it to obtain each approver's
+authentication URL (`approver_token=<uuid>`) and their 6-digit code. Everything is per
+approver email (each approver lives in their own `OTP#<reqId>#<email>` item).
+
+```bash
+# 0. Inbox — shows what was "sent", newest first. Copy one approval link + its OTP.
+curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/mock-mail
+
+# 1. Place a request so there is an OTP flow to drive (reuse PR #2 curl; local data resets on db:up)
+curl -s -o /dev/null -X POST http://localhost:4000/dev/api/purchase-requests \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Laptop","description":"x","amount":1000,"requesterEmail":"ruth@example.com","approverEmails":["ana@example.com","sven@example.com","luca@example.com"]}'
+
+# 2. Issue OTP for an approver → 201 {expiresInSeconds:180} (replace ID/EMAIL/TOKEN)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp \
+  -H "Content-Type: application/json" -d '{"email":"ana@example.com"}'
+
+# 3. Validate with the CORRECT code → 201 (OTP is consumed: a 2nd identical call → 410)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp/validate \
+  -H "Content-Type: application/json" -d '{"email":"ana@example.com","code":"000000"}'
+
+# 4. Bad code → 401 {attemptsRemaining}; 3 bad codes lock the approver out → 403
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp/validate \
+  -H "Content-Type: application/json" -d '{"email":"ana@example.com","code":"999999"}'
+
+# 5. Expired OTP → use regenerate (only works while the approver is still ACTIVE)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp/regenerate \
+  -H "Content-Type: application/json" -d '{"email":"ana@example.com"}'
+```
+
+**Expected result**: `200 inbox → 201 request → 201 issue → 201 validate → 401 (wrong) → 403 (after 3 fails) → 201/403 regenerate`. The OTP is single-use: validating the same code twice returns 410 on the second. A locked approver is rejected with 403 even with the correct code.
+
+> **Routes/status codes** may vary by one letter if the handler differs from this guide's shape —
+> the authoritative table is `openspec/changes/purchase-approval-flow/design-api.md`. If a curl
+> doesn't match, first confirm the exact path there.
+
+---
+
 ## Clean Code context (to defend in the interview)
 
 The flow verified by these curls is `HTTP → handler → use case → port → DynamoDB`:
@@ -191,6 +236,33 @@ infrastructure/{DynamoDbRequestRepository, DynamoDbUserRegistry, InMemoryTokenIs
 - **Deferred to PR #3**: real OTP/TTL + DB-backed mock-mail. PR #2 defines
   `TokenIssuerPort`/`MailPort` and wires placeholders so the flow runs end-to-end.
 
+The approver-otp flow is the **access gate** — worth defending hard:
+
+```
+api/handlers/otp.ts                       → HTTP (issue / validate / regenerate)
+   ▼ calls
+application/{IssueOtp, ValidateOtp, RegenerateOtp}
+   ▼ depends on the PORTS
+application/ports/{ApproverGate, OtpService, MockMailPort/MailPort}
+   ▲ implemented by
+infrastructure/{DynamoDbApproverRepository, DynamoDbOtpRepository, MockMailRepo}
+```
+
+- **Gate chain (R7)**: request terminal→**410** · approver locked→**403** · unknown token→**404** ·
+  then OTP validation. Each gate short-circuits before the next.
+- **Hash-only storage**: the 6-digit code is stored as `sha256(code + requestId#email)` — the
+  plaintext is never persisted or compared. TTL (3 min) lives on its OWN `OTP#<email>` item so
+  auto-expiry never deletes the durable approver record; expiry is ALSO enforced in code.
+- **Single-use (R4)**: validate consumes the OTP with a `ConditionExpression` delete
+  (compare-and-swap) — only ONE concurrent submission of the correct code wins; the loser gets
+  410. Try the same code twice to prove it.
+- **Atomic lockout**: failed attempts use a single conditional `UpdateItem`
+  (`SET attempts+1, tokenStatus=locked WHERE tokenStatus=active AND attempts=limitMinusOne`),
+  so 3 wrong guesses can never overshoot and lock exactly once (check `/mock-mail` + the OTP
+  curls for the 401 → 403 transition).
+- **Mock mail as outbox**: `GET /mock-mail` is the demo inbox; `MockMailRepo` writes a row per
+  event. Swapping to SES later = one adapter behind `MailPort`.
+
 ## Checklist
 
 - [ ] `backend/.env` created from `.env.example`
@@ -198,3 +270,4 @@ infrastructure/{DynamoDbRequestRepository, DynamoDbUserRegistry, InMemoryTokenIs
 - [ ] `pnpm -C backend run dev` responds on `:4000`
 - [ ] The 5 PR #1 curls return `201 → 409 → 400 → 400 → 200`
 - [ ] The PR #2 curls return `201 → 404 → 400 → 200 → 200 → 404`
+- [ ] The PR #3 flows return `201 issue → 201 validate → 401 (wrong) → 403 (after 3) → regenerate`

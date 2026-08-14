@@ -142,6 +142,27 @@ maybeDescribe('DynamoDbRequestRepository (integration)', () => {
     expect(detail!.approvers.map((a) => a.name).sort()).toEqual(['Bob', 'Carol', 'Dave']);
   });
 
+  it('create is all-or-nothing: a failing approver write rolls back the whole transaction', async () => {
+    // One approver email so long that its APPR key exceeds DynamoDB's key limit
+    // (2,048 bytes), forcing the entire TransactWriteItems to abort.
+    const huge = 'x'.repeat(3000);
+    const id = 'req-txn';
+
+    await expect(
+      repo.create(
+        makeRequest(id, '2026-08-11T00:00:00.000Z'),
+        [
+          { email: 'bob@example.com', name: 'Bob', token: 't-bob' },
+          { email: huge, name: 'Huge', token: 't-huge' },
+          { email: 'dave@example.com', name: 'Dave', token: 't-dave' },
+        ]
+      )
+    ).rejects.toBeTruthy();
+
+    // Atomicity: NOTHING was committed — REQ absent, so no approver rows remain.
+    await expect(repo.get(id)).resolves.toBeUndefined();
+  });
+
   it('list returns requests newest first via GSI1', async () => {
     // Genuinely distinct, monotonically-increasing createdAt instants so the
     // GSI1 newest-first order is deterministic (no same-instant ties).

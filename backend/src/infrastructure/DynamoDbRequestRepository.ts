@@ -2,8 +2,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
-  PutCommand,
   QueryCommand,
+  TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import {
   PurchaseRequest,
@@ -36,44 +36,48 @@ export interface RequestRepositoryEnv {
  *   REQ  → PK=`REQ#<id>`, SK=`REQ#<id>`, gsi1pk=REQ, gsi1sk=createdAt
  *   APPR → PK=`REQ#<id>`, SK=`APPR#<email>`
  *
- * `create` issues one PutItem for the REQ row and one per approver record —
- * the same put-per-row style as DynamoDbUserRepository. `list` queries GSI1
- * newest-first; `get` reads the REQ row then queries its approver set and
- * derives their status from the persisted signature timestamps.
+ * `create` writes the REQ row plus all 3 approver records in a SINGLE
+ * `TransactWriteItems` (all-or-nothing), so a mid-write failure cannot leave a
+ * partial request. `list` queries GSI1 newest-first; `get` reads the REQ row
+ * then queries its approver set and derives their status from the persisted
+ * signature timestamps.
  */
 export class DynamoDbRequestRepository implements RequestRepository {
   constructor(private readonly env: RequestRepositoryEnv) {}
 
   async create(request: PurchaseRequest, approvers: ApproverStorageRecord[]): Promise<void> {
     const detail = request.toDetail();
+    const requestId = request.getId();
 
-    await this.env.documentClient.send(
-      new PutCommand({
-        TableName: this.env.tableName,
-        Item: {
-          PK: `REQ#${request.getId()}`,
-          SK: `REQ#${request.getId()}`,
-          gsi1pk: TYPE_CODE,
-          gsi1sk: detail.createdAt,
-          id: detail.id,
-          title: detail.title,
-          description: detail.description,
-          amount: detail.amount,
-          currency: detail.currency,
-          status: detail.status,
-          createdBy: detail.createdBy,
-          approvers: detail.approvers.map((a) => ({ email: a.email, name: a.name })),
-          createdAt: detail.createdAt,
-        },
-      })
-    );
-
-    for (const approver of approvers) {
-      await this.env.documentClient.send(
-        new PutCommand({
+    // ONE transaction writes the REQ row + all 3 approver rows all-or-nothing.
+    // A mid-write failure therefore can never leave a partial request (e.g. a
+    // REQ without its approver set) — the durable creation is atomic.
+    const transactItems = [
+      {
+        Put: {
           TableName: this.env.tableName,
           Item: {
-            PK: `REQ#${request.getId()}`,
+            PK: `REQ#${requestId}`,
+            SK: `REQ#${requestId}`,
+            gsi1pk: TYPE_CODE,
+            gsi1sk: detail.createdAt,
+            id: detail.id,
+            title: detail.title,
+            description: detail.description,
+            amount: detail.amount,
+            currency: detail.currency,
+            status: detail.status,
+            createdBy: detail.createdBy,
+            approvers: detail.approvers.map((a) => ({ email: a.email, name: a.name })),
+            createdAt: detail.createdAt,
+          },
+        },
+      },
+      ...approvers.map((approver) => ({
+        Put: {
+          TableName: this.env.tableName,
+          Item: {
+            PK: `REQ#${requestId}`,
             SK: `${APPR_PREFIX}${approver.email}`,
             email: approver.email,
             name: approver.name,
@@ -81,9 +85,13 @@ export class DynamoDbRequestRepository implements RequestRepository {
             tokenStatus: 'ACTIVE',
             attempts: 0,
           },
-        })
-      );
-    }
+        },
+      })),
+    ];
+
+    await this.env.documentClient.send(
+      new TransactWriteCommand({ TransactItems: transactItems })
+    );
   }
 
   async list(): Promise<RequestSummary[]> {

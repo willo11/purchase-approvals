@@ -22,6 +22,7 @@ provider:
         - dynamodb:DeleteItem
         - dynamodb:Query
         - dynamodb:Scan
+        - dynamodb:TransactWriteItems
       Resource:
         - !GetAtt PurchaseApprovalsTable.Arn
         - !Join ['', [!GetAtt PurchaseApprovalsTable.Arn, '/index/*']]
@@ -87,6 +88,34 @@ functions:
       - http:
           path: api/purchase-requests/{id}
           method: get
+
+  mock-mail:
+    handler: dist/api/handlers/mockMail.list
+    events:
+      - http:
+          path: mock-mail
+          method: get
+
+  issue-otp:
+    handler: dist/api/handlers/otp.issue
+    events:
+      - http:
+          path: api/approvals/{requestId}/token/{token}/otp
+          method: post
+
+  validate-otp:
+    handler: dist/api/handlers/otp.validate
+    events:
+      - http:
+          path: api/approvals/{requestId}/token/{token}/otp/validate
+          method: post
+
+  regenerate-otp:
+    handler: dist/api/handlers/otp.regenerate
+    events:
+      - http:
+          path: api/approvals/{requestId}/token/{token}/otp/regenerate
+          method: post
 
 resources:
   Resources:
