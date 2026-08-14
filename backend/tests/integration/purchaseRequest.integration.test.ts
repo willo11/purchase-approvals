@@ -143,14 +143,19 @@ maybeDescribe('DynamoDbRequestRepository (integration)', () => {
   });
 
   it('list returns requests newest first via GSI1', async () => {
-    await repo.create(makeRequest('req-old', '2026-08-01T00:00:00.000Z'), APPROVERS);
-    await repo.create(makeRequest('req-new', '2026-08-10T00:00:00.000Z'), APPROVERS);
+    // Genuinely distinct, monotonically-increasing createdAt instants so the
+    // GSI1 newest-first order is deterministic (no same-instant ties).
+    await repo.create(makeRequest('req-a-old', '2026-08-01T00:00:00.000Z'), APPROVERS);
+    await repo.create(makeRequest('req-b-mid', '2026-08-02T00:00:00.000Z'), APPROVERS);
+    await repo.create(makeRequest('req-c-new', '2026-08-10T00:00:00.000Z'), APPROVERS);
 
     const summaries = await repo.list();
 
     const ids = summaries.map((s) => s.id);
-    expect(ids[0]).toBe('req-new');
-    expect(ids[1]).toBe('req-old');
+    const newestFirst = ids.filter((id) =>
+      ['req-c-new', 'req-b-mid', 'req-a-old'].includes(id)
+    );
+    expect(newestFirst).toEqual(['req-c-new', 'req-b-mid', 'req-a-old']);
   });
 
   it('get returns undefined for an unknown request id', async () => {
