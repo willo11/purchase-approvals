@@ -1,0 +1,10 @@
+# Local DynamoDB for integration tests and serverless-offline development.
+# Usage: `docker compose up -d` (or `npm run db:up`), then run
+# `npm run test:integration` (sets DYNAMODB_LOCAL) or `sls offline start`.
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: purchase-approvals-dynamodb-local
+    ports:
+      - "8000:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
