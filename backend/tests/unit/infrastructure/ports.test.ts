@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { TokenIssuer } from '../../../src/infrastructure/TokenIssuer';
-import { LogMailer } from '../../../src/infrastructure/LogMailer';
 
 describe('TokenIssuer (spec R1)', () => {
   it('issues a unique URL-safe uuid token per approver and a well-formed approve URL', () => {
@@ -21,27 +20,5 @@ describe('TokenIssuer (spec R1)', () => {
     expect(parsed.searchParams.get('request_id')).toBe('req-1');
     expect(parsed.searchParams.get('approver_token')).toBe(a.token);
     expect(randomUUID()).toBeDefined();
-  });
-});
-
-describe('LogMailer (PR #2 placeholder)', () => {
-  it('sends (logs) the mail without throwing', async () => {
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
-    const mailer = new LogMailer();
-
-    await expect(
-      mailer.send({
-        id: 'mail-1',
-        to: 'bob@example.com',
-        type: 'APPROVAL_LINK',
-        subject: 'Approval needed: Laptop',
-        body: 'Please approve.',
-        link: 'https://example.com/approve?request_id=req-1',
-        createdAt: '2026-08-14T00:00:00.000Z',
-      })
-    ).resolves.toBeUndefined();
-
-    expect(logSpy).toHaveBeenCalled();
-    logSpy.mockRestore();
   });
 });

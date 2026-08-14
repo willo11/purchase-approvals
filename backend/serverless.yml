@@ -88,6 +88,13 @@ functions:
           path: api/purchase-requests/{id}
           method: get
 
+  mock-mail:
+    handler: dist/api/handlers/mockMail.list
+    events:
+      - http:
+          path: mock-mail
+          method: get
+
 resources:
   Resources:
     PurchaseApprovalsTable:

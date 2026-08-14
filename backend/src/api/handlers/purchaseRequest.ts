@@ -14,7 +14,7 @@ import { GetRequestDetail } from '../../application/GetRequestDetail';
 import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepository';
 import { makeUserRegistry } from '../../infrastructure/DynamoDbUserRegistry';
 import { TokenIssuer } from '../../infrastructure/TokenIssuer';
-import { LogMailer } from '../../infrastructure/LogMailer';
+import { makeMockMailRepo } from '../../infrastructure/MockMailRepo';
 
 /**
  * Error → HTTP mapper following design-api.md policy.
@@ -115,7 +115,7 @@ export function buildGetRequestDetail(getRequestDetail: GetRequestDetail) {
 const repository = makeRequestRepository();
 const registry = makeUserRegistry();
 const tokenIssuer = new TokenIssuer();
-const mailer = new LogMailer();
+const mailer = makeMockMailRepo();
 
 export const create = buildCreateRequest(
   new CreateRequest(repository, registry, tokenIssuer, mailer)
