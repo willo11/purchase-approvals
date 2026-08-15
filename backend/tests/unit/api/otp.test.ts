@@ -79,6 +79,69 @@ describe('POST .../otp  (issue)', () => {
   });
 });
 
+describe('POST .../otp — error body contract pinned for the approver classifier', () => {
+  // The approver remote (frontend/approver/src/lib/flow.js) keys its terminal
+  // screens on the ERROR NAME and the exact English MESSAGE of the 409/410
+  // bodies below (e.g. /signed/i vs /rejected/i on 409, COMPLETED vs REJECTED
+  // on 410). These strings are produced by ApproverGate (application layer)
+  // and mapped verbatim by the handler — the tests below PIN them so a
+  // backend rewording fails here first, with both frontend suites still green.
+
+  function issueFor(approverOverrides: Record<string, unknown> = {}, detailOverrides: Record<string, unknown> = {}) {
+    const requests = new FakeRequestRepository();
+    requests.seedDetail(otpRequestDetail(detailOverrides));
+    const approvers = new FakeApproverRepository().seed('req-1', activeGate(approverOverrides));
+    return buildIssueOtp(
+      new IssueOtp(
+        new ApproverGate(requests, approvers),
+        new FakeOtpRepository(),
+        new OtpService(),
+        new FakeMailPort()
+      )
+    );
+  }
+
+  it('pins the 409 body for an already-SIGNED approver', async () => {
+    const issue = issueFor({ status_signed: '2026-08-14T09:00:00.000Z' });
+    const res = await issue(postEvent({ requestId: 'req-1', token: 'token-bob' }));
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body)).toEqual({
+      error: 'AlreadyActedError',
+      message: 'This approver already signed the request',
+    });
+  });
+
+  it('pins the 409 body for an already-REJECTED approver', async () => {
+    const issue = issueFor({ status_rejected: '2026-08-14T09:00:00.000Z' });
+    const res = await issue(postEvent({ requestId: 'req-1', token: 'token-bob' }));
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body)).toEqual({
+      error: 'AlreadyActedError',
+      message: 'This approver already rejected the request',
+    });
+  });
+
+  it('pins the 410 body for a COMPLETED request', async () => {
+    const issue = issueFor({}, { status: 'COMPLETED' });
+    const res = await issue(postEvent({ requestId: 'req-1', token: 'token-bob' }));
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.body)).toEqual({
+      error: 'TerminalRequestError',
+      message: 'Request req-1 is already COMPLETED; no OTP flow is offered',
+    });
+  });
+
+  it('pins the 410 body for a REJECTED request', async () => {
+    const issue = issueFor({}, { status: 'REJECTED' });
+    const res = await issue(postEvent({ requestId: 'req-1', token: 'token-bob' }));
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.body)).toEqual({
+      error: 'TerminalRequestError',
+      message: 'Request req-1 is already REJECTED; no OTP flow is offered',
+    });
+  });
+});
+
 describe('POST .../otp/validate', () => {
   it('returns 200 { valid: true } on a correct code and consumes the OTP', async () => {
     const { otps, validate } = buildHandlerSuite();

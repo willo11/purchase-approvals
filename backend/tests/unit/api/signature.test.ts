@@ -133,3 +133,43 @@ describe('POST .../{token}/reject (#11)', () => {
     expect(res.statusCode).toBe(410);
   });
 });
+
+describe('signature error body contract pinned for the approver classifier', () => {
+  // Same pin as the OTP gate tests (backend/tests/unit/api/otp.test.ts): the
+  // approver remote (frontend/approver/src/lib/flow.js) keys its terminal
+  // screens on the ERROR NAME and exact English MESSAGE of the 409/410 bodies.
+  // approve/reject go through the SAME shared ApproverGate, so a rewording
+  // breaks the decision-page screens too — pinned here as well.
+
+  it('pins the 409 body when the approver already signed', async () => {
+    const { approve } = buildHandlers({ status_signed: '2026-08-14T09:00:00.000Z' });
+    const res = await approve(postEvent('token-bob'));
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body)).toEqual({
+      error: 'AlreadyActedError',
+      message: 'This approver already signed the request',
+    });
+  });
+
+  it('pins the 410 body for a COMPLETED request', async () => {
+    const requests = new FakeRequestRepository().seedDetail(
+      otpRequestDetail({ status: 'COMPLETED' })
+    );
+    const approvers = new FakeApproverRepository().seed('req-1', activeGate());
+    const approve = buildApprove(
+      new ApproveRequest(
+        new ApproverGate(requests, approvers),
+        approvers,
+        requests,
+        new FakeEvidenceGenerator(),
+        new FakeEvidenceStore()
+      )
+    );
+    const res = await approve(postEvent('token-bob'));
+    expect(res.statusCode).toBe(410);
+    expect(JSON.parse(res.body)).toEqual({
+      error: 'TerminalRequestError',
+      message: 'Request req-1 is already COMPLETED; no OTP flow is offered',
+    });
+  });
+});

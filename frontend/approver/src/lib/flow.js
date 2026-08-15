@@ -13,6 +13,15 @@
  *   410 → completed / already rejected (request terminal) — EXCEPT the
  *         ExpiredOtpError name, which means "generate a new OTP" (R2) and is
  *         handled by the OTP entry screen, not as a terminal variant.
+ *
+ * NOTE (message coupling pin): the 409 signed-vs-rejected and 410
+ * COMPLETED-vs-REJECTED discriminators regex the backend's stable English
+ * `message` strings, and `error` compares against the backend's error-class
+ * NAMES. Both are PINNED by backend handler contract tests — see
+ * `backend/tests/unit/api/otp.test.ts` ("error body contract pinned for the
+ * approver classifier") and `backend/tests/unit/api/signature.test.ts`
+ * ("signature error body contract pinned"). If the backend rewords the
+ * messages, those tests fail before any frontend screen can break silently.
  */
 export const TERMINAL_VARIANTS = {
   COMPLETED: 'completed',
