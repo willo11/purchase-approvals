@@ -318,6 +318,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OtpIssueResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
         '403':
           $ref: '#/components/responses/LockoutError'
         '409':
@@ -591,9 +593,6 @@ components:
           type: string
           description: Present ONLY after successful PDF generation (S3 key `reqs/<id>/evidence.pdf`)
           example: reqs/123e4567-e89b-12d3-a456-426614174000/evidence.pdf
-        rejectedBy:
-          type: string
-          description: Email of the rejecting approver when status = REJECTED
 
     ApproverView:
       type: object
