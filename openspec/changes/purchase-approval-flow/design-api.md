@@ -7,7 +7,7 @@ Base path from API Gateway. JSON requests/responses unless noted.
 - `User { name: string; email: string; position?: string; }`
 - `ApproverView { email; name; status: 'PENDING'|'SIGNED'|'REJECTED'; signedAt?: string; rejectedAt?: string }`
 - `RequestSummary { id; title; amount; currency:'USD'; status; createdAt }`
-- `RequestDetail extends RequestSummary { description; createdBy:{email,name}; approvers: ApproverView[3]; excluded; evidenceUrl?: string }`
+- `RequestDetail extends RequestSummary { description; createdBy:{email,name}; approvers: ApproverView[3]; evidenceKey?: string }`
 - `Error { error: string; message: string }`
 
 ## Error → HTTP policy
