@@ -35,3 +35,25 @@
 - **Tradeoff**: AWS-native static hosting (S3 bucket + CloudFront CDN) vs a managed static host.
 - **Decision**: S3 + CloudFront.
 - **Why**: keeps the whole solution on AWS for a coherent story; still just static files. Vercel/Netlify would work identically for the frontend — the backend cannot go there (it must be AWS Lambda + API Gateway + DynamoDB).
+
+## 6. Requester-panel UI stack: Tailwind v3 + shadcn copy, RHF+zod, zustand scope, English copy
+- **Tradeoff (a) — Tailwind version with webpack 5 Module Federation**: v4 (CSS-first) vs v3.4 (classic config).
+  - **Decision**: **Tailwind v3.4 + postcss-loader** (`tailwind.config.js` + `postcss.config.js`, style-loader/css-loader/postcss-loader chain in each app's webpack).
+  - **Why**: v4's CSS-first `@tailwindcss/postcss` plugin changes the config surface and risks the green build we already have with webpack 5 + Module Federation + jest; v3.4 integrates cleanly with the existing rule chain and `identity-obj-proxy` jest mapping. Safe default, zero build churn.
+  - **Interview line**: "I chose Tailwind v3.4 because v4's CSS-first plugin is a bigger integration risk with this webpack-5 MF + jest setup; v3.4 drops into the existing postcss-loader chain with zero churn."
+- **Tradeoff (b) — shadcn/ui in a webpack monorepo**: run the shadcn CLI (Vite/Next-oriented) vs copy components manually per-remote.
+  - **Decision**: **Manual copy per-remote**. `components.json` documents the setup; each remote copies the small set of needed components (Button, Input, Label, Card, Table, Select, Badge) into `src/components/ui/` over Tailwind + Radix primitives. No shadcn runtime dependency — it's source components.
+  - **Why**: the CLI assumes Vite/Next paths and a single-app layout; this is a webpack monorepo where each remote owns its bundle. Copying keeps each remote self-contained and its build/test green.
+  - **Costs/risks**: copied components can drift from upstream shadcn; mitigated by keeping the set small and pinned to the copied source. JSX ports (`.jsx`) of the TSX originals use relative `@/` alias (webpack + jest moduleNameMapper both resolve it).
+- **Tradeoff (c) — form validation layer**: validate in the domain/backend only vs also at the UX boundary.
+  - **Decision**: **React Hook Form + @hookform/resolvers/zod**, zod schema at the UX boundary (title/description/amount/requester/3 approvers) with English messages; `zodResolver` drives per-field errors; the requester != approvers and distinct-approvers constraints are enforced both in the form (options excluded/cleared + superRefine) and in the backend (source of truth, 400).
+  - **Why**: fail-fast UX with the SAME constraints the backend enforces; server validation errors (400/404) are still surfaced via `toErrorView` (R5) — the API remains authoritative.
+- **Tradeoff (d) — client state management**: zustand store vs lifting state / URL-only.
+  - **Decision**: **zustand scoped to LOCAL UI state only** — a single `listRefreshSignal` counter bumped after a successful create so the list refetches (e.g., if it stayed mounted). NO business state (requests, users, detail) is duplicated from the API into the store; the backend is the source of truth and screens fetch on mount. Where the URL param already carries state (selected request id in `/requester/:id`), no store entry was added — the store holds only what the router can't express.
+  - **Interview line**: "zustand here is one counter, not a state container — the router carries the selected id, the API is the source of truth, and the store just signals 'list data changed' across screens."
+- **Tradeoff (e) — UI copy language**: any language vs English.
+  - **Decision**: **English UI copy only** (labels, buttons, empty states, validation messages) — per the PR contract. No Spanish terms in host/requester source.
+- **Tradeoff (f) — MF shared modules**: what crosses the host↔remote boundary.
+  - **Decision**: share **react, react-dom, react-router-dom as singletons** in both host and requester webpack configs. `react-router-dom` MUST be shared so the requester's `<Routes>` render inside the host's `<BrowserRouter>` context (a second bundled copy would lose the router context). zod/zustand/axios/Radix are NOT shared — each remote bundles its own; sharing them would couple the remotes' versions for no runtime benefit (the host never imports them).
+  - **Interview line**: "The router instance must be a singleton across the boundary — that's the one sharing decision that's load-bearing; everything else (zod, zustand, axios) is per-remote to avoid version coupling."
+

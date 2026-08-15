@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
 
@@ -13,18 +13,21 @@ jest.mock('approver/App', () => {
   return { __esModule: true, default: () => <div>mock approver</div> };
 }, { virtual: true });
 
-test('renders the landing page with links to both remotes', () => {
+test('renders the landing page inside the shell with nav links to both remotes', () => {
   render(
     <MemoryRouter initialEntries={['/']}>
       <App />
     </MemoryRouter>
   );
 
+  const header = screen.getByRole('banner');
+  expect(within(header).getByRole('link', { name: /purchase approvals/i })).toBeInTheDocument();
+  expect(within(header).getByRole('link', { name: /requester/i })).toBeInTheDocument();
+  expect(within(header).getByRole('link', { name: /approver/i })).toBeInTheDocument();
+
   expect(
     screen.getByRole('heading', { name: /purchase approval flow/i })
   ).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /requester/i })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /approver/i })).toBeInTheDocument();
 });
 
 test('lazily composes the requester remote on /requester*', async () => {
