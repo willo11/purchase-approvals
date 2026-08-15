@@ -4,8 +4,8 @@ import { DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb';
  * Integration harness smoke test (task 0.4).
  *
  * Gated by `DYNAMODB_LOCAL` (e.g. `http://localhost:8000`). Skipped by default
- * so `npm test` runs without Docker; run `npm run test:integration` (which sets
- * the env var) after `npm run db:up` to prove the AWS SDK v3 client can reach
+ * so `pnpm test` runs without Docker; run `pnpm run test:integration` (which sets
+ * the env var) after `pnpm run db:up` to prove the AWS SDK v3 client can reach
  * the dockerized DynamoDB. Real repository round-trips land with PRs #1-#5.
  */
 // `@types/jest` does not type `describe.skipIf`; the conditional assignment

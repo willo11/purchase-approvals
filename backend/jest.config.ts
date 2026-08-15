@@ -8,7 +8,7 @@ import type { Config } from 'jest';
  * - Integration tests: `tests/integration/**` — real AWS SDK adapters against
  *   a local DynamoDB (docker compose service `dynamodb-local`). They are gated
  *   by the `DYNAMODB_LOCAL` env var and skipped when the endpoint is not set,
- *   so the default `npm test` stays green without Docker.
+ *   so the default `pnpm test` stays green without Docker.
  *
  * Coverage threshold: global >= 60% (assignment requirement FR9 / config.yaml
  * `coverage_threshold: 60`). Placeholder PR #0 keeps it above threshold; later

@@ -1,6 +1,7 @@
 # Local DynamoDB for integration tests and serverless-offline development.
-# Usage: `docker compose up -d` (or `npm run db:up`), then run
-# `npm run test:integration` (sets DYNAMODB_LOCAL) or `sls offline start`.
+# Usage: `docker compose up -d` (or `pnpm -C backend run db:up`), then run
+# `pnpm -C backend run db:create-table` (or `db:up` + `DYNAMODB_LOCAL` for
+# `test:integration`) or `sls offline start`.
 services:
   dynamodb-local:
     image: amazon/dynamodb-local:latest
