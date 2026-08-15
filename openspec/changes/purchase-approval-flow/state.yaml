@@ -36,11 +36,17 @@ notes: |
   navigate to detail), detail (approver status table + Download PDF only when COMPLETED).
   UI stack: Tailwind v3.4 + shadcn copied per-remote (no runtime dep), RHF+zod at form
   boundary, zustand scoped to refresh signal only, English UI copy.
-  Fresh review caught + fixed CRITICAL: remote CSS was stranded in standalone entry —
-  composed host rendered UNSTYLED; fixed by importing globals.css through the exposed App
-  module + static regression + dist-level proof + manual smoke step. Also fixed: zod
-  ≤2-decimals rule was dead code (Math.round always integer) → mirrored backend exact
-  check; pinned react-router-dom singleton; added test gaps (decimals, reject row, PDF
-  failure, 404 create); frontend CI in workflow. DECISIONS frontend #6.
+  Fresh review caught + fixed CRITICAL: remote CSS stranded in standalone entry → composed
+  host rendered UNSTYLED; fixed by importing globals.css through exposed App module + static
+  regression + dist-level proof + manual smoke step. Also fixed zod ≤2-decimals dead code,
+  pinned react-router-dom singleton, test gaps, frontend CI. DECISIONS frontend #6.
 
-updated_at: 2026-08-15T01:00:00
+  PRE-#7 refactor MERGED (5100cf4): agreed per-remote folder convention applied to ALL 3 MF
+  apps — app/ (wiring+colocated App tests), api/, components/ (feature) + components/ui/
+  (shadcn, no dedicated tests), hooks/, lib/, pages/ (screens→pages), routes/ (paths.js),
+  store/ (zustand), setupTests in app/. Tests colocated everywhere. Mechanical: 35 files,
+  26 renames + import/config edits, zero logic change (verified by -M rename detection +
+  full suite green; documented as the review gate for this move-only change). DECISIONS
+  frontend #7. PR #7 approver-flow will follow the same structure.
+
+updated_at: 2026-08-15T01:30:00
