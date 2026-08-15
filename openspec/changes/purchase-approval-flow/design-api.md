@@ -7,7 +7,7 @@ Base path from API Gateway. JSON requests/responses unless noted.
 - `User { name: string; email: string; position?: string; }`
 - `ApproverView { email; name; status: 'PENDING'|'SIGNED'|'REJECTED'; signedAt?: string; rejectedAt?: string }`
 - `RequestSummary { id; title; amount; currency:'USD'; status; createdAt }`
-- `RequestDetail extends RequestSummary { description; createdBy:{email,name}; approvers: ApproverView[3]; excluded; evidenceUrl?: string; rejectedBy?: string }`
+- `RequestDetail extends RequestSummary { description; createdBy:{email,name}; approvers: ApproverView[3]; excluded; evidenceUrl?: string }`
 - `Error { error: string; message: string }`
 
 ## Error → HTTP policy
@@ -70,7 +70,7 @@ All under `/api/approvals/{requestId}/token/{token}`.
 ### host (shell)
 - Route `/` landing/menu → no API (static shell).
 
-### `requester` remote — routes `/requester`, `/requester/nueva`, `/requester/:id`
+### `requester` remote — routes `/requester`, `/requester/new`, `/requester/:id`
 | Screen / action | Endpoint |
 |---|---|
 | Load list | #4 GET /api/purchase-requests |

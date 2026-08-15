@@ -74,6 +74,13 @@
 - **Interview line**: "I standardized the folder layout per remote — app wiring, api, feature components vs agnostic ui primitives, hooks, lib, pages, routes, store — with colocated tests everywhere, so a new remote (the approver) follows the exact same map its sibling already proves."
 
 ## 8. Approver flow: HTTP-code-driven state machine + zustand flow store, folder convention applied
+
+> **Numbering note (PR #8 reconciliation)**: the frontend entries are numbered
+> in file sequence, not by PR number — #6 = requester panel (PR #6), #7 = folder
+> convention (the pre-#7 refactor PR), #8 = approver flow (PR #7). This is
+> deliberate: the folder-convention refactor landed between the two PRs and took
+> #7, so the approver entry reads #8. No duplicate numbers exist.
+
 - **Tradeoff (a) — what drives the flow**: client-side route per step (`/approve/otp`, `/approve/decision`, ...) vs a single `/approve` entry + in-app state machine.
   - **Decision**: **one `/approve` entry** (design-api link form `https://<host>/approve?request_id=<id>&approver_token=<uuid>`) that reads the query params and renders the flow step from a zustand flow store. The state machine is **driven by the backend's error→HTTP policy** (design-api): gate 410→completed/already-rejected, 403→lockout, 404→invalid link, 409→already signed/rejected, 401→wrong-OTP countdown, plus a `410 ExpiredOtpError` name check that means "generate a new OTP" (R2) instead of terminal.
   - **Why**: the URL must stay the mailed link (query params are the only contract), so sub-routes would need to re-carry or rewrite the params; a store keeps the params + phase in one place and the terminal gate truly dominates every transition (a reload of the same link lands on the same terminal screen, R4). The single classifier `terminalVariantFromError(status, error, message)` lives in `lib/flow.js` (pure, unit-tested) and every hook/page uses it — one mapping, no drift.

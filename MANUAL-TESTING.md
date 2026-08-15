@@ -4,10 +4,11 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #6 — requester-panel (frontend)**. The frontend is now wired to
-> the backend (requester panel composed by the host shell); PR #7 approver-flow still
-> pending. Backend curls below remain valid; the PR #6 section adds the composed-UI smoke
-> steps.
+> Current status: **PR #8 — release & docs (FINAL)**. All capabilities are in:
+> backend (PRs #1–#5), requester panel (PR #6), approver flow (PR #7). The
+> sections below cover the full API by curl and the composed-UI walks; the PR #7
+> section adds the approver composition smoke and the PR #8 section is the final
+> end-to-end checklist.
 
 ---
 
@@ -329,6 +330,90 @@ critical one — it exercises the exposed-module CSS path that Jest cannot).
 
 ---
 
+### PR #7 — approver flow (composed UI, the gate → OTP → decision walk)
+
+The approver remote (on `:3002`) owns `/approve`, composed by the host at
+`/approve*`. The flow is driven by the backend's error→HTTP codes, so the smoke
+below exercises the real gate (410/403/404/409) through the browser.
+
+> **APPROVER_BASE_URL (CRITICAL for this smoke)**: approval links are built from
+> `APPROVER_BASE_URL` in `backend/.env` — it must be the **frontend origin**
+> (`http://localhost:3000`), NOT the default backend `http://localhost:4000`,
+> or the mailed link opens the raw API URL instead of the composed approver UI.
+> Restart the backend after changing it.
+
+**Composition smoke (run first — the CSS-graph invariant, approver flavor):**
+
+1. With the backend + all three frontends running (`pnpm run dev`), create a
+   request (PR #2 curls or `/requester/new`) so mock-mail has approval links.
+2. Open **http://localhost:4000/dev/mock-mail** — the demo inbox (backend JSON,
+   not a frontend page). Copy the `link` of one APPROVAL_LINK mail; replace the
+   host part with `http://localhost:3000` (or ensure `APPROVER_BASE_URL` already
+   set it).
+3. Open that URL in the browser. Expected: a **STYLED** approval screen (card +
+   OTP input with "Expires in 3 minutes" style copy) — not raw unstyled
+   chrome. Raw styling = the exposed-module CSS graph regressed (same invariant
+   as the PR #6 smoke, now for the approver graph).
+4. Enter a **wrong** 6-digit code: expect "Incorrect code. N attempts
+   remaining." 3 wrong codes → **"Access Locked"** screen with no actions.
+   (Do this on a spare link, or regenerate after locking.)
+
+**Happy path walk (one approver):**
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Open a fresh approval link (host origin) | OTP entry card, styled, expiry shown |
+| 2 | Enter the correct code from `/mock-mail` (`otpPlain`) | Decision screen: request title/amount/requester + "Your decision" card |
+| 3 | Click **Approve** | Confirmation: request approved; status flips; **no name input anywhere** |
+| 4 | Reopen the same link | Terminal screen "already signed" — informational, **no buttons** (R4) |
+| 5 | On a NEW approver link, click **Reject** → inline confirm → **Yes, reject** | Request rejected; `{confirm:true}` sent only after confirm |
+| 6 | Reopen another link on the rejected request | Terminal screen "already rejected" — informational, no buttons |
+
+**Terminal-gate checks via curl (the classifier contract, pinned in tests):**
+
+```bash
+# Already-signed token → 409 already-acted (approver-flow R1)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp \
+  -H "Content-Type: application/json" -d '{}'
+
+# Completed request → 410 terminal (COMPLETED message)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/approve \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+---
+
+### PR #8 — final end-to-end checklist (release & docs)
+
+The complete demo in one pass — register → create → mock-mail → OTP → 3 approvals
+→ COMPLETED + PDF. Uses the composed UI; the API curls stay the ground truth.
+
+| # | Step | Where | Expected |
+|---|------|-------|----------|
+| 1 | Register 1 requester + 3 approvers | PR #1 curls or the create form's user selectors | 201 each / users listed |
+| 2 | Create a request (3 distinct approvers) | `/requester/new` or PR #2 curl | 201 `PENDING`; detail shows 3 PENDING rows |
+| 3 | Open the inbox (backend JSON) | `http://localhost:4000/dev/mock-mail` | APPROVAL_LINK + OTP mails, newest first |
+| 4 | Approver A: open link (frontend origin) → OTP → approve | Browser | SIGNED row in detail |
+| 5 | Approver B: same flow | Browser | 2 SIGNED / 1 PENDING |
+| 6 | Approver C: same flow — the 3rd approval completes | Browser | status **COMPLETED** |
+| 7 | Download PDF | `/requester/<id>` → **Download PDF** | `evidence-<id>.pdf`, real PDF (title, amount, Requester, 3 signature rows) |
+| 8 | Reopen any approval link | Browser | terminal "already signed"/"already completed" — no actions |
+
+**Reject variant**: replace step 4 with **Reject → Yes, reject** — the request
+goes `REJECTED`, every other link shows the informational terminal screen, and
+no PDF appears (download → 404).
+
+**Deploy-only checks** (when run against a deployed API, PR #8 docs):
+- `curl .../dev/health` → `{"status":"ok"}`
+- Evidence PDF downloads as **real binary bytes** (`file evidence.pdf` → "PDF
+  document") — proves `apiGateway.binaryMediaTypes` works; offline cannot.
+- Approval links open the composed approver UI on the **CloudFront origin**
+  (`APPROVER_BASE_URL` set to it in the deployed backend).
+
+---
+
 ## Clean Code context (to defend in the interview)
 
 The flow verified by these curls is `HTTP → handler → use case → port → DynamoDB`:
@@ -434,3 +519,8 @@ infrastructure/DynamoDb{Approver,Request}Repository  (ConditionExpression CAS)
 - [ ] (Deploy-only) `evidence.pdf` downloads as a real binary on a DEPLOYED API — `apiGateway.binaryMediaTypes` is set; offline cannot prove it
 - [ ] PR #6 composition smoke: `http://localhost:3000/requester` renders STYLED (nav, card, table, styled buttons) — exposed-module CSS graph works
 - [ ] PR #6 create form: 3 distinct approvers → detail; amount `1.234` → client error; empty amount → "Amount is required"
+- [ ] PR #7 composition smoke: an approval link from `/mock-mail` (host origin) renders the STYLED approver UI; wrong OTP ×3 → "Access Locked" with no actions
+- [ ] PR #7 approve: no name input; reopen link → "already signed" terminal with no buttons; reject requires inline confirm (`{confirm:true}`)
+- [ ] PR #8 final flow: register → create → mock-mail → OTP → 3 approvals → **COMPLETED** → Download PDF (real PDF bytes)
+- [ ] PR #8 reject variant: first reject wins → `REJECTED`, other links informational, PDF download 404
+- [ ] PR #8 deploy notes present in root README (backend `sls deploy` + frontend S3/CloudFront, `APPROVER_BASE_URL` documented)

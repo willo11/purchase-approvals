@@ -9,6 +9,9 @@ node_modules/
 dist/
 coverage/
 
+# Serverless Framework deploy artifacts (created by `sls deploy`)
+.serverless/
+
 # Environment files — never commit secrets
 .env
 .env.*

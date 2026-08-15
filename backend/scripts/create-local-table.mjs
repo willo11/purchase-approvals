@@ -62,12 +62,12 @@ try {
       },
     })
   );
-  console.log(`✓ Tabla local "${tableName}" creada en ${endpoint}`);
+  console.log(`✓ Local table "${tableName}" created at ${endpoint}`);
 } catch (err) {
   if (err.name === 'ResourceInUseException') {
-    console.log(`✓ OK: la tabla "${tableName}" ya existe en ${endpoint}`);
+    console.log(`✓ OK: table "${tableName}" already exists at ${endpoint}`);
   } else {
-    console.error('✗ Error creando la tabla:', err);
+    console.error('✗ Error creating table:', err);
     process.exitCode = 1;
   }
 }
