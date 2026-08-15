@@ -264,13 +264,33 @@ three builds PASS with the default `http://localhost:4000`):
 ```bash
 # The API base URL is compiled in via webpack DefinePlugin
 # (process.env.API_BASE_URL); point it at the deployed API Gateway stage.
+# The HOST bundle additionally needs the REMOTE URLs (webpack reads them at
+# build time — see frontend/host/webpack.config.js): point them at the deployed
+# requester/approver origins (S3 website endpoints or their CloudFront URLs).
+# Without these, a CloudFront-served host would make the viewer's browser fetch
+# remotes from ITS OWN localhost and the composed UIs never load.
 API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/dev \
   pnpm -C frontend/host run build
+
+# requester and approver bundles: API base URL only (they know their own origin
+# via Module Federation `publicPath: auto`).
 API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/dev \
   pnpm -C frontend/requester run build
 API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/dev \
   pnpm -C frontend/approver run build
 ```
+
+**Build the host bundle with the deployed remote URLs** (required, or the
+composed remotes never load):
+
+```bash
+REQUESTER_REMOTE_URL=https://<requester-origin>/remoteEntry.js \
+APPROVER_REMOTE_URL=https://<approver-origin>/remoteEntry.js \
+  pnpm -C frontend/host run build
+```
+
+(Defaults when unset: `http://localhost:3001/remoteEntry.js` and
+`http://localhost:3002/remoteEntry.js` — local dev unchanged.)
 
 **Upload to S3 (static website hosting ON, index document `index.html`):**
 

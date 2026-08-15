@@ -2,6 +2,17 @@ const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { ModuleFederationPlugin } = require('webpack').container;
 
+// Remote URLs are read at BUILD TIME from the environment so a deployed host
+// bundle can point at the real remote origins (S3/CloudFront) instead of the
+// local dev servers. Local defaults keep `pnpm run dev:front` unchanged.
+//   REQUESTER_REMOTE_URL=https://requester.example.com/remoteEntry.js \
+//   APPROVER_REMOTE_URL=https://approver.example.com/remoteEntry.js \
+//   pnpm -C frontend/host run build
+const requesterRemoteUrl =
+  process.env.REQUESTER_REMOTE_URL ?? 'http://localhost:3001/remoteEntry.js';
+const approverRemoteUrl =
+  process.env.APPROVER_REMOTE_URL ?? 'http://localhost:3002/remoteEntry.js';
+
 module.exports = {
   entry: './src/app/index.js',
   output: {
@@ -30,8 +41,8 @@ module.exports = {
     new ModuleFederationPlugin({
       name: 'host',
       remotes: {
-        requester: 'requester@http://localhost:3001/remoteEntry.js',
-        approver: 'approver@http://localhost:3002/remoteEntry.js',
+        requester: `requester@${requesterRemoteUrl}`,
+        approver: `approver@${approverRemoteUrl}`,
       },
       shared: {
         react: { singleton: true },
