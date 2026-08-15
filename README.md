@@ -192,14 +192,62 @@ as the machine-readable artifact.
 
 ## Deployment
 
-> **Status: documented-pending.** This sandbox has no AWS credentials, so the
-> exact release commands and post-deploy record steps are documented in the
-> backend and frontend deployment sections below. They were not executed here —
-> run them from an environment with an AWS profile configured, then fill the
-> placeholders. See task 8.3 (backend) and 8.4 (frontend) in
-> `openspec/changes/purchase-approval-flow/tasks.md`.
+> **Status: documented-pending (8.3 backend / 8.4 frontend).** This sandbox has
+> no AWS credentials — the release commands below were authored and validated
+> (`pnpm -C backend run build` PASS; `sls deploy` attempted and failed with
+> "The security token included in the request is invalid" because only dummy
+> local credentials exist), but the actual deploy must run from an environment
+> with a real AWS profile. After deploying, fill the placeholders in this
+> section and run the post-deploy checks.
 
-<!-- Backend deploy steps land in the 8.3 commit; frontend deploy steps in 8.4. -->
+### 8.3 — Backend (Lambda + API Gateway + DynamoDB + S3)
+
+**Pre-deploy env cleanup (CRITICAL)** — `serverless-dotenv-plugin` injects
+`backend/.env` into the deployed functions, so before deploying:
+
+1. **Empty `DYNAMODB_LOCAL`** in `backend/.env` (or remove the line) — otherwise
+   every deployed Lambda points its DynamoDB client at `localhost:8000` and the
+   API fails at runtime (the client is built from that env var).
+2. **Set `APPROVER_BASE_URL`** to the frontend origin (CloudFront URL, see 8.4)
+   so mock-mail approval links open the approver UI — not the API Gateway URL.
+3. Keep `AWS_REGION`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` pointing at
+   your real profile (the dummy local values are for local dev only).
+
+**Deploy:**
+
+```bash
+# 1. Build the TypeScript bundle (validated: PASS)
+pnpm -C backend run build
+
+# 2. Deploy — provisions the DynamoDB table, S3 bucket, IAM and all functions
+pnpm -C backend exec sls deploy --stage dev --region us-east-1
+```
+
+**Record after deploy** (from `sls deploy` output → "Service Information"):
+
+| Resource | Where to find it | Placeholder (dev) |
+|----------|------------------|-------------------|
+| API base URL | output "endpoints" (first URL) | `https://<api-id>.execute-api.<region>.amazonaws.com/dev` |
+| DynamoDB table | `${self:custom.tableName}` | `purchase-approvals-dev` |
+| S3 evidence bucket | `${self:custom.bucketName}` | `purchase-approvals-evidence-dev` |
+
+**Post-deploy checks:**
+
+```bash
+# Health
+curl https://<api-id>.execute-api.<region>.amazonaws.com/dev/health   # → {"status":"ok"}
+
+# Binary media types (CRITICAL — offline/tests cannot catch a regression):
+# the PDF must download as REAL binary bytes, not a base64 string.
+curl -D - -o evidence.pdf -H "Accept: application/pdf" \
+  https://<api-id>.execute-api.<region>.amazonaws.com/dev/api/purchase-requests/<id>/evidence.pdf
+file evidence.pdf    # must say "PDF document", not ASCII text
+```
+
+`serverless.yml` sets `apiGateway.binaryMediaTypes: ['application/pdf', '*/*']`
+(PR #5 fresh-review FIX 1) — the check above proves the deployment honors it.
+
+<!-- Frontend deploy steps land in the 8.4 commit. -->
 
 ## Assumptions
 
