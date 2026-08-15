@@ -1,5 +1,6 @@
 // Dynamic import creates the async boundary required by Module Federation.
 import('./bootstrap');
 
-// Tailwind + design tokens (shadcn CSS variables).
-import './globals.css';
+// NOTE: the global stylesheet is imported from src/App.jsx (the MF EXPOSED
+// module) so it ships through the composed module graph. Standalone dev also
+// reaches it via index → bootstrap → App.
