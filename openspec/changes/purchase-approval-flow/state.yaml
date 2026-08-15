@@ -2,7 +2,7 @@ change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
 current_phase: apply
-current_pr: 6
+current_pr: 7
 
 dag:
   proposal: done
@@ -15,31 +15,32 @@ dag:
 
 branch:
   base: main
-  active: feat/requester-panel
-  applied_prs: [0, 1, 2, 3, 4, 5]
-  pending_prs: [6, 7, 8]
+  active: feat/approver-flow
+  applied_prs: [0, 1, 2, 3, 4, 5, 6]
+  pending_prs: [7, 8]
 
 notes: |
-  PR #0 bootstrap merged. PR #1 user-registry MERGED (82b71c1). PR #2 purchase-request
-  MERGED (aggregate + 4 ports, TransactWriteItems create, unknown-email 404 fixed).
-  PR #3 approver-otp MERGED (OTP gate: sha256 hash-only, own TTL item, in-code expiry,
-  atomic lockout single UpdateItem, atomic one-time consume CAS, mock-mail inbox).
-  PR #4 approval-signature MERGED (concurrency core: shared gate w/ 4th check 409,
-  Step A per-approver CAS + Step B REQ CAS `!completedAt AND #status=pending`,
-  reject first-wins, completed XOR rejected, validatedAt/401, EvidenceGeneratorPort,
-  ConsistentRead trigger, CI workflow).
+  PR #0 bootstrap merged. PR #1 user-registry MERGED. PR #2 purchase-request MERGED
+  (aggregate + 4 ports, TransactWriteItems, unknown-email 404). PR #3 approver-otp
+  MERGED (OTP gate: sha256, TTL item, in-code expiry, atomic lockout + consume CAS,
+  mock-mail). PR #4 approval-signature MERGED (concurrency core: Step A + Step B CAS
+  `!completedAt AND #status=pending`, reject first-wins, validatedAt/401, CI). PR #5
+  pdf-evidence MERGED (PdfGenerator pdf-lib, S3EvidenceStore behind port, deterministic
+  evidenceKey + idempotent guard, binaryMediaTypes fix, download 200/404).
   Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
 
-  PR #5 pdf-evidence MERGED — EvidenceGeneratorPort real (PdfGenerator pdf-lib +
-  Helvetica, zero native deps), S3EvidenceStore behind EvidenceStorePort (deterministic
-  evidenceKey reqs/<id>/evidence.pdf, in-memory store seam for tests), completion-CAS
-  winner: generate → put → recordEvidence (attribute_not_exists(evidenceKey) idempotent),
-  failure keeps COMPLETED + 404 (R4); download endpoint 200 application/pdf / 404.
-  Fresh review caught + fixed CRITICAL: API Gateway binaryMediaTypes missing → deployed
-  download would serve base64 TEXT with lying Content-Type (offline/tests bypass the
-  boundary). Fixed binaryMediaTypes ['application/pdf','*/*'] + deploy-only note;
-  ConsistentRead on REQ get; removed dead StubEvidenceGenerator; documented retry/
-  recovery evolution (permanent-404 gap, SQS/retry endpoint deferred). DECISIONS #23.
-  MANUAL-TESTING PR #5 section + checklist.
+  PR #6 requester-panel MERGED — FIRST FRONTEND PR (micro-frontends). Host shell with
+  Tailwind nav + shared react-router-dom singleton; requester remote owns /requester*:
+  list (newest-first + empty state + error/retry), create (RHF+zod, requester + 3
+  approver selectors from GET /api/users, requester!=approvers, server errors surfaced,
+  navigate to detail), detail (approver status table + Download PDF only when COMPLETED).
+  UI stack: Tailwind v3.4 + shadcn copied per-remote (no runtime dep), RHF+zod at form
+  boundary, zustand scoped to refresh signal only, English UI copy.
+  Fresh review caught + fixed CRITICAL: remote CSS was stranded in standalone entry —
+  composed host rendered UNSTYLED; fixed by importing globals.css through the exposed App
+  module + static regression + dist-level proof + manual smoke step. Also fixed: zod
+  ≤2-decimals rule was dead code (Math.round always integer) → mirrored backend exact
+  check; pinned react-router-dom singleton; added test gaps (decimals, reject row, PDF
+  failure, 404 create); frontend CI in workflow. DECISIONS frontend #6.
 
-updated_at: 2026-08-15T00:10:00
+updated_at: 2026-08-15T01:00:00
