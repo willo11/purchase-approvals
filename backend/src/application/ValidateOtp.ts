@@ -82,6 +82,16 @@ export class ValidateOtp {
     if (!consumed) {
       throw new ExpiredOtpError('The OTP has already been used or expired');
     }
+    // Durable proof of possession: only the single consume winner reaches this
+    // line, so `validatedAt` is written exactly once per successful
+    // validation. The signature use cases require it before approve/reject
+    // (spec R1/R2 → 401); a stale marker is accepted (residual risk, noted in
+    // DECISIONS #22 — the marker does not expire).
+    await this.approvers.markValidated(
+      command.requestId,
+      approver.email,
+      new Date().toISOString()
+    );
     return { valid: true };
   }
 }

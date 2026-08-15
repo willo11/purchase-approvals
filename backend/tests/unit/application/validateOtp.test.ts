@@ -46,7 +46,7 @@ function buildDeps(overrides: { attempts?: number } = {}) {
 
 describe('ValidateOtp use case (spec R4)', () => {
   it('validates a correct unexpired code and consumes the OTP (one-time use)', async () => {
-    const { otps, useCase } = buildDeps();
+    const { approvers, otps, useCase } = buildDeps();
     seedStoredCode(otps, '123456');
 
     const result = await useCase.execute(CMD);
@@ -55,6 +55,13 @@ describe('ValidateOtp use case (spec R4)', () => {
     // OTP consumed via the atomic compare-and-swap consume
     expect(otps.consumeCalls).toBe(1);
     expect(otps.stored('req-1', 'bob@example.com')).toBeUndefined();
+
+    // success durably marks the approver validated (precondition for
+    // approve/reject, spec R1/R2)
+    expect(approvers.markValidatedCalls).toBe(1);
+    expect(
+      approvers.gateState('req-1', 'bob@example.com')?.validatedAt
+    ).toEqual(expect.any(String));
 
     // a second validation of the same code now fails as expired (consumed)
     await expect(useCase.execute(CMD)).rejects.toThrow(ExpiredOtpError);

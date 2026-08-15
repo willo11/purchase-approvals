@@ -1,19 +1,29 @@
 import { GlobalStatus } from '../domain/enums/GlobalStatus';
-import { UnknownRequestError, UnknownTokenError, TerminalRequestError, LockedOutError } from '../domain/errors';
+import {
+  UnknownRequestError,
+  UnknownTokenError,
+  TerminalRequestError,
+  LockedOutError,
+  AlreadyActedError,
+} from '../domain/errors';
 import { RequestRepository } from './ports/RequestRepository';
 import { ApproverRepository, ApproverGateState } from './ports/ApproverRepository';
 
 /**
- * The shared OTP entry gate (spec R7, design-concurrency §2), checked in fixed
- * order on durable items:
+ * The shared eligibility gate (spec R7, design-concurrency §2), checked in
+ * fixed order on durable items — a single eligibility point shared by the OTP
+ * use cases (issue/validate/regenerate) and the signature use cases
+ * (approve/reject):
  *
  *   1. Read REQ — `COMPLETED`/`REJECTED` → {@link TerminalRequestError} (410).
  *   2. Resolve the approver by token — unknown → {@link UnknownTokenError} (404).
  *   3. `tokenStatus = INVALIDATED_LOCKOUT` → {@link LockedOutError} (403).
+ *   4. Approver already acted (`status_signed`/`status_rejected`) →
+ *      {@link AlreadyActedError} (409) — no double-sign, no re-entry after
+ *      acting (added in PR #4 for the signature capability).
  *
  * Terminal global state dominates: even a correct token cannot act on a
- * terminal request. Reading one REQ + the 3-item approver set is two reads, no
- * joins.
+ * terminal request. Reading one REQ + the approver set is two reads, no joins.
  */
 export class ApproverGate {
   constructor(
@@ -41,6 +51,12 @@ export class ApproverGate {
     }
     if (approver.tokenStatus === 'INVALIDATED_LOCKOUT') {
       throw new LockedOutError('Approver token is invalidated (lockout)');
+    }
+    if (approver.status_signed) {
+      throw new AlreadyActedError('This approver already signed the request');
+    }
+    if (approver.status_rejected) {
+      throw new AlreadyActedError('This approver already rejected the request');
     }
     return approver;
   }

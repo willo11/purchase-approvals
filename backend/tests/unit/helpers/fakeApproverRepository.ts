@@ -16,6 +16,12 @@ export class FakeApproverRepository implements ApproverRepository {
   findByTokenCalls = 0;
   incrementCalls = 0;
   resetCalls = 0;
+  markValidatedCalls = 0;
+  markSignedCalls = 0;
+  markRejectedCalls = 0;
+  lastSignedCondition = '';
+  lastRejectedCondition = '';
+  lastSignature: { name: string; timestamp: string } | undefined;
 
   seed(requestId: string, state: ApproverGateState): this {
     this.approvers.set(`${requestId}#${state.email}`, { ...state });
@@ -53,8 +59,46 @@ export class FakeApproverRepository implements ApproverRepository {
     return true;
   }
 
+  async markValidated(requestId: string, email: string, timestamp: string): Promise<void> {
+    this.markValidatedCalls += 1;
+    const state = this.approvers.get(`${requestId}#${email}`);
+    if (state) state.validatedAt = timestamp;
+  }
+
+  async markSigned(
+    requestId: string,
+    email: string,
+    signature: { name: string; timestamp: string }
+  ): Promise<boolean> {
+    this.markSignedCalls += 1;
+    this.lastSignedCondition = SIGNED_CONDITION;
+    this.lastSignature = signature;
+    const state = this.approvers.get(`${requestId}#${email}`);
+    if (!state || state.status_signed || state.status_rejected) return false;
+    state.status_signed = signature.timestamp;
+    return true;
+  }
+
+  async markRejected(
+    requestId: string,
+    email: string,
+    signature: { name: string; timestamp: string }
+  ): Promise<boolean> {
+    this.markRejectedCalls += 1;
+    this.lastRejectedCondition = SIGNED_CONDITION;
+    this.lastSignature = signature;
+    const state = this.approvers.get(`${requestId}#${email}`);
+    if (!state || state.status_signed || state.status_rejected) return false;
+    state.status_rejected = signature.timestamp;
+    return true;
+  }
+
   gateState(requestId: string, email: string): ApproverGateState | undefined {
     const state = this.approvers.get(`${requestId}#${email}`);
     return state ? { ...state } : undefined;
   }
 }
+
+/** The exact Step A condition emitted by both approve and reject (design §3/§4). */
+const SIGNED_CONDITION =
+  'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)';

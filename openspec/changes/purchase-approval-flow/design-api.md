@@ -42,9 +42,15 @@ Base path from API Gateway. JSON requests/responses unless noted.
 All under `/api/approvals/{requestId}/token/{token}`.
 | # | Method Path | Request | Success | Errors |
 |---|---|---|---|---|
-| 7 | POST .../otp | — | 201 `{expiresInSeconds:180}` | 404, 403, 410 |
-| 8 | POST .../otp/validate | {code} | 200 `{valid:true}` | 400 (format), 401 `{attemptsRemaining}`, 403, 410 |
-| 9 | POST .../otp/regenerate | — | 201 `{expiresInSeconds:180}` | 403, 410 |
+| 7 | POST .../otp | — | 201 `{expiresInSeconds:180}` | 404, 403, 409, 410 |
+| 8 | POST .../otp/validate | {code} | 200 `{valid:true}` | 400 (format), 401 `{attemptsRemaining}`, 403, 409, 410 |
+| 9 | POST .../otp/regenerate | — | 201 `{expiresInSeconds:180}` | 403, 409, 410 |
+
+> The shared `ApproverGate` (also used by the signature endpoints) adds an
+> **already-acted → 409** check, so OTP endpoints on a token whose approver
+> already signed/rejected return 409. A SUCCESSFUL `.../otp/validate` durably
+> writes a `validatedAt` marker on the approver row; approve/reject require it
+> (missing → 401) — see #10/#11 and DECISIONS #22.
 
 ### approver decision
 | # | Method Path | Request | Success | Errors |

@@ -4,6 +4,7 @@ import {
   GetCommand,
   QueryCommand,
   TransactWriteCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import {
   PurchaseRequest,
@@ -23,6 +24,10 @@ import {
  */
 const TYPE_CODE = 'REQ';
 const APPR_PREFIX = 'APPR#';
+
+function isConditionalCheckFailed(err: unknown): boolean {
+  return (err as { name?: string })?.name === 'ConditionalCheckFailedException';
+}
 
 export interface RequestRepositoryEnv {
   tableName: string;
@@ -125,10 +130,80 @@ export class DynamoDbRequestRepository implements RequestRepository {
           ':pk': `REQ#${id}`,
           ':appr': APPR_PREFIX,
         },
+        // Strongly consistent read of the approver set: two concurrent signers
+        // must each observe the OTHER's committed Step A write, or neither
+        // would reach the completion CAS and the request would stick PENDING
+        // forever (fresh-review FIX 2). A stale eventually-consistent read can
+        // only ever under-count signed approvers.
+        ConsistentRead: true,
       })
     );
 
     return this.toDetail(id, reqItem, approverResult.Items ?? []);
+  }
+
+  async completeIfAbsent(id: string, completedAt: string): Promise<boolean> {
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
+          // `status` is a reserved DynamoDB keyword → #status placeholder.
+          UpdateExpression: 'SET completedAt = :now, #status = :completed, gsi1sk = :now',
+          // Step B completion CAS (design-concurrency §3): only ONE writer can
+          // pass. Symmetric with the reject CAS: `#status = :pending` makes the
+          // completion lose to a concurrent reject that already set REJECTED
+          // (cross-direction single winner — a REJECTED request can never be
+          // flipped back to COMPLETED, so `completedAt`/`rejectedAt` never
+          // coexist).
+          ConditionExpression: 'attribute_not_exists(completedAt) AND #status = :pending',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':now': completedAt,
+            ':completed': 'COMPLETED',
+            ':pending': 'PENDING',
+          },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
+  }
+
+  async rejectIfPending(
+    id: string,
+    rejectorEmail: string,
+    rejectedAt: string
+  ): Promise<boolean> {
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
+          // `status` is a reserved DynamoDB keyword → #status placeholder.
+          UpdateExpression:
+            'SET rejectedAt = :now, rejectedBy = :who, #status = :rejected, gsi1sk = :now',
+          // Step B reject CAS (design-concurrency §4): only the FIRST reject (and
+          // a still-PENDING state) can pass; an already-COMPLETED request fails.
+          // `status` is a reserved DynamoDB keyword → #status placeholder in the
+          // condition AND the update.
+          ConditionExpression: '#status = :pending AND attribute_not_exists(rejectedAt)',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':now': rejectedAt,
+            ':who': rejectorEmail,
+            ':rejected': 'REJECTED',
+            ':pending': 'PENDING',
+          },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
   }
 
   private toSummary(item: Record<string, unknown>): RequestSummary {

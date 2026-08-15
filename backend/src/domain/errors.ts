@@ -125,3 +125,21 @@ export class WrongOtpError extends PurchaseRequestDomainError {
  * code; TTL is only cleanup — design-concurrency §6, spec R4).
  */
 export class ExpiredOtpError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when an approver tries to act (approve/reject) after already having
+ * signed or rejected the request, or (via the shared gate) re-enters the OTP
+ * flow after acting. Mapped to HTTP 409 ("already acted", design-api policy —
+ * the 4th gate check added for the signature capability).
+ */
+export class AlreadyActedError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when an approver tries to act (approve/reject) WITHOUT having
+ * validated an OTP first: the signature endpoints take no code, so possession
+ * is proven earlier by `ValidateOtp`, which durably writes `validatedAt` on
+ * the approver row (spec R1/R2 — a validated OTP is a precondition to act).
+ * Mapped to HTTP 401 (design-api policy). OTP issue/validate/regenerate do NOT
+ * raise this — the check lives in the signature use cases only.
+ */
+export class OtpNotValidatedError extends PurchaseRequestDomainError {}

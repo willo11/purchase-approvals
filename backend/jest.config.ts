@@ -32,6 +32,10 @@ const config: Config = {
       lines: 60,
     },
   },
+  // CI safety (fresh-review FIX 4): Jest 29 REMOVED the `forbidOnly` option
+  // (it existed through Jest 27), so the guard is a pre-hook script
+  // (`scripts/no-focused-tests.mjs`) that fails any jest run containing a
+  // committed `.only`/`fit`/`fdescribe`.
 };
 
 export default config;

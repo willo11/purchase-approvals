@@ -117,6 +117,20 @@ functions:
           path: api/approvals/{requestId}/token/{token}/otp/regenerate
           method: post
 
+  approve:
+    handler: dist/api/handlers/signature.approve
+    events:
+      - http:
+          path: api/approvals/{requestId}/token/{token}/approve
+          method: post
+
+  reject:
+    handler: dist/api/handlers/signature.reject
+    events:
+      - http:
+          path: api/approvals/{requestId}/token/{token}/reject
+          method: post
+
 resources:
   Resources:
     PurchaseApprovalsTable:

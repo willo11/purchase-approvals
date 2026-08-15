@@ -48,6 +48,12 @@ function throwingRepo(): RequestRepository {
     async get() {
       throw new Error('DynamoDB unreachable');
     },
+    async completeIfAbsent() {
+      throw new Error('DynamoDB unreachable');
+    },
+    async rejectIfPending() {
+      throw new Error('DynamoDB unreachable');
+    },
   };
 }
 

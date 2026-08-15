@@ -29,4 +29,28 @@ export interface RequestRepository {
 
   /** Returns the request detail including per-approver status, or `undefined`. */
   get(id: string): Promise<RequestDetail | undefined>;
+
+  /**
+   * Step B of a completion (design-concurrency §3): the EXCLUSIVE global CAS
+   * on the REQUEST item. Sets `status=COMPLETED` + `completedAt` only if
+   * `attribute_not_exists(completedAt)` still holds — the request has NOT yet
+   * been completed. Returns `true` when THIS call moved `PENDING → COMPLETED`
+   * (the single winner), `false` when a concurrent writer already did (the
+   * loser must NOT generate evidence; spec R3 lookahead, task 4.2).
+   */
+  completeIfAbsent(id: string, completedAt: string): Promise<boolean>;
+
+  /**
+   * Step B of a reject (design-concurrency §4): the EXCLUSIVE global CAS on the
+   * REQUEST item. Sets `status=REJECTED` + `rejectedAt`+`rejectedBy` only if
+   * `status = PENDING AND attribute_not_exists(rejectedAt)`. Returns `true`
+   * when THIS call moved `PENDING → REJECTED`, `false` when a concurrent
+   * approve already CAS'd `COMPLETED` (so reject loses; R2 precedence
+   * COMPLETED > REJECTED, task 4.3).
+   */
+  rejectIfPending(
+    id: string,
+    rejectorEmail: string,
+    rejectedAt: string
+  ): Promise<boolean>;
 }

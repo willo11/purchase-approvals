@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      # Real DynamoDB for the integration suite (CAS concurrency races among
+      # them). Reachable from the runner at localhost:8000.
+      dynamodb-local:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # No workspaces: each package is independent with its own lockfile.
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -C backend install --frozen-lockfile
+          pnpm -C frontend/host install --frozen-lockfile
+          pnpm -C frontend/requester install --frozen-lockfile
+          pnpm -C frontend/approver install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -C backend run typecheck
+
+      - name: Build
+        run: pnpm -C backend run build
+
+      - name: Unit tests (backend)
+        run: pnpm -C backend test
+
+      # The integration suite (incl. the CAS concurrency races) is gated by
+      # DYNAMODB_LOCAL and silently skipped without it — always run it here.
+      - name: Wait for dynamodb-local
+        run: node -e "const net=require('net');const t=()=>{const s=net.connect(8000,'localhost');s.on('connect',()=>process.exit(0));s.on('error',()=>setTimeout(t,1000));};t()"
+
+      - name: Integration tests (backend, dynamodb-local)
+        run: DYNAMODB_LOCAL=http://localhost:8000 pnpm -C backend run test:integration
+
+      - name: Full CI suite (root)
+        run: pnpm run test:ci

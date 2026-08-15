@@ -14,6 +14,7 @@ import {
   LockedOutError,
   ExpiredOtpError,
   WrongOtpError,
+  AlreadyActedError,
   PurchaseRequestDomainError,
 } from '../../domain/errors';
 import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepository';
@@ -37,6 +38,11 @@ function errorResponse(err: unknown): { status: number; body: Record<string, unk
   }
   if (err instanceof LockedOutError) {
     return { status: 403, body: { error: err.name, message: err.message } };
+  }
+  if (err instanceof AlreadyActedError) {
+    // Shared gate: an approver who already signed/rejected re-entering the OTP
+    // flow gets the "already acted" terminal screen (approver-flow R1/R4).
+    return { status: 409, body: { error: err.name, message: err.message } };
   }
   if (err instanceof TerminalRequestError || err instanceof ExpiredOtpError) {
     return { status: 410, body: { error: err.name, message: err.message } };
