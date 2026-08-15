@@ -1,0 +1,787 @@
+openapi: 3.0.3
+info:
+  title: Purchase Approval Flow API
+  version: 1.0.0
+  description: |
+    Serverless purchase-approval workflow with CONSENT SIGNATURE and immutable
+    evidence. Flow: create request → unique link per approver → OTP →
+    approve/reject with CAS → PDF evidence on completion.
+
+    This document is the authoritative 12-endpoint contract for the reviewer
+    driving the demo. It mirrors `openspec/changes/purchase-approval-flow/design-api.md`
+    (the planning source of truth) and pins the error→HTTP policy plus example
+    curl flows. The system is NOT a payment system and NOT PKI/cryptographic
+    signing — the "signature" is registered consent evidence (registered snapshot
+    name + timestamp after OTP validation).
+
+    Base path: every route is served under the API Gateway stage (e.g. `/dev`).
+
+servers:
+  - url: http://localhost:4000/dev
+    description: Local development (serverless-offline)
+  - url: https://<api-id>.execute-api.<region>.amazonaws.com/dev
+    description: Deployed API Gateway (replace placeholders after `sls deploy`)
+
+tags:
+  - name: users
+    description: Employee registry (#1-#2)
+  - name: requests
+    description: Purchase requests (#3-#6)
+  - name: approver-otp
+    description: Approval link + OTP access gate (#7-#9)
+  - name: approver-decision
+    description: Approve / reject (concurrency core, #10-#11)
+  - name: mock-mail
+    description: Simulated inbox / outbox (#12)
+
+paths:
+  /health:
+    get:
+      tags: [users]
+      summary: Liveness probe (auxiliary, not part of the 12 endpoints)
+      operationId: health
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/users:
+    post:
+      tags: [users]
+      summary: 'Register a user (#1)'
+      description: |
+        Registers an employee. `email` is the natural key (PK) — a duplicate
+        email is rejected with 409 via a conditional PutItem (no read-then-write).
+        `position` is optional and defaults to "Employee". No password — email-only
+        demo identity (auth disclaimer in the root README).
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  example: Ana
+                email:
+                  type: string
+                  format: email
+                  example: ana@example.com
+                position:
+                  type: string
+                  example: Analyst
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    get:
+      tags: [users]
+      summary: 'List users (#2)'
+      description: Returns all registered users in creation order.
+      operationId: listUsers
+      responses:
+        '200':
+          description: Users in creation order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/purchase-requests:
+    post:
+      tags: [requests]
+      summary: 'Create a purchase request (#3)'
+      description: |
+        Creates a PENDING request with exactly 3 distinct approvers (none equal
+        to the requester), snapshots names from the user registry (unknown email
+        → 404), persists the REQ item + 3 APPR records (single TransactWrite),
+        and issues one unique approval link + simulated mail per approver.
+      operationId: createRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRequestInput'
+      responses:
+        '201':
+          description: Request created with 3 approver records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestDetail'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    get:
+      tags: [requests]
+      summary: 'List purchase requests (#4)'
+      description: Returns request summaries, newest first (GSI1).
+      operationId: listRequests
+      responses:
+        '200':
+          description: Request summaries, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequestSummary'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/purchase-requests/{id}:
+    get:
+      tags: [requests]
+      summary: 'Get request detail (#5)'
+      description: Returns the request plus the per-approver status table.
+      operationId: getRequestDetail
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Request detail with approver views
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/purchase-requests/{id}/evidence.pdf:
+    get:
+      tags: [requests]
+      summary: 'Download PDF evidence (#6)'
+      description: |
+        Returns the generated PDF as `application/pdf` binary. 404 for every
+        "no PDF" case (request missing / not COMPLETED / no evidenceKey /
+        object gone). See the CRITICAL deploy note in the root README about
+        `apiGateway.binaryMediaTypes` — offline cannot catch a regression here.
+      operationId: downloadEvidence
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: PDF evidence bytes
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'inline; filename="evidence-<id>.pdf"'
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: No evidence PDF exists for this request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/approvals/{requestId}/token/{token}/otp:
+    post:
+      tags: [approver-otp]
+      summary: 'Issue OTP (#7)'
+      description: |
+        Resolves the token and issues a 6-digit OTP (mailed via the mock outbox,
+        disclosed in /mock-mail), valid 180 seconds. Gate chain:
+        request terminal → 410 · approver locked → 403 · already acted → 409 ·
+        unknown request/token → 404. The approver is identified by the token —
+        no request body is read.
+      operationId: issueOtp
+      parameters:
+        - $ref: '#/components/parameters/ApprovalRequestId'
+        - $ref: '#/components/parameters/ApproverToken'
+      responses:
+        '201':
+          description: OTP issued and mailed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpIssueResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '403':
+          $ref: '#/components/responses/LockoutError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '410':
+          $ref: '#/components/responses/TerminalError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/approvals/{requestId}/token/{token}/otp/validate:
+    post:
+      tags: [approver-otp]
+      summary: 'Validate OTP (#8)'
+      description: |
+        Consumes the OTP with an atomic conditional delete — exactly ONE
+        concurrent submission of the correct code wins; losers get 410
+        (ExpiredOtpError). A successful validation durably writes a
+        `validatedAt` marker on the approver row, required by #10/#11 (missing
+        → 401). Wrong code → 401 with `attemptsRemaining`; 3 failures atomically
+        lock the approver (403). Expiry is enforced in code.
+      operationId: validateOtp
+      parameters:
+        - $ref: '#/components/parameters/ApprovalRequestId'
+        - $ref: '#/components/parameters/ApproverToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  description: 6-digit numeric code
+                  pattern: '^[0-9]{6}$'
+                  example: '123456'
+      responses:
+        '200':
+          description: OTP valid and consumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpValidateResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Wrong OTP code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WrongOtpError'
+        '403':
+          $ref: '#/components/responses/LockoutError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '410':
+          description: OTP expired or already consumed (single-use) — regenerate is allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/approvals/{requestId}/token/{token}/otp/regenerate:
+    post:
+      tags: [approver-otp]
+      summary: 'Regenerate OTP (#9)'
+      description: |
+        Issues a fresh OTP + 180s TTL and resets failed attempts — only while the
+        approver token is still ACTIVE (locked → 403, already acted → 409,
+        terminal request → 410). No request body is read.
+      operationId: regenerateOtp
+      parameters:
+        - $ref: '#/components/parameters/ApprovalRequestId'
+        - $ref: '#/components/parameters/ApproverToken'
+      responses:
+        '201':
+          description: New OTP issued and mailed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpIssueResponse'
+        '403':
+          $ref: '#/components/responses/LockoutError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '410':
+          $ref: '#/components/responses/TerminalError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/approvals/{requestId}/token/{token}/approve:
+    post:
+      tags: [approver-decision]
+      summary: 'Approve request (#10)'
+      description: |
+        Records the approver's CONSENT SIGNATURE — registered snapshot name +
+        timestamp (no name in the request; nothing typed). Requires the
+        validated-OTP marker (401 otherwise). Step A per-approver CAS (one
+        signature per approver, 409 on repeat); Step B completion CAS: when all
+        3 have signed, exactly one writer transitions the REQ item to COMPLETED
+        and generates the PDF evidence; the CAS loser returns 201 with the
+        current (already-completed) state and does NOT generate.
+      operationId: approveRequest
+      parameters:
+        - $ref: '#/components/parameters/ApprovalRequestId'
+        - $ref: '#/components/parameters/ApproverToken'
+      responses:
+        '201':
+          description: Action recorded — returns the CURRENT global state (CAS loser included)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestDetail'
+        '401':
+          description: OTP was not validated before acting (validatedAt marker missing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '403':
+          $ref: '#/components/responses/LockoutError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '410':
+          $ref: '#/components/responses/TerminalError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/approvals/{requestId}/token/{token}/reject:
+    post:
+      tags: [approver-decision]
+      summary: 'Reject request (#11)'
+      description: |
+        Requires `{confirm: true}` (400 otherwise). Records the reject on the
+        approver row (Step A CAS), then the first-reject-wins REQ CAS —
+        `status = PENDING AND attribute_not_exists(rejectedAt)` → global
+        REJECTED, terminal for every other link. A concurrent approve that
+        already CAS'd COMPLETED makes the reject lose (completed XOR rejected).
+        Requires the validated-OTP marker (401).
+      operationId: rejectRequest
+      parameters:
+        - $ref: '#/components/parameters/ApprovalRequestId'
+        - $ref: '#/components/parameters/ApproverToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: boolean
+                  const: true
+                  example: true
+      responses:
+        '201':
+          description: Action recorded — returns the CURRENT global state (CAS loser included)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestDetail'
+        '400':
+          description: Missing or non-true confirm flag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: OTP was not validated before acting (validatedAt marker missing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '403':
+          $ref: '#/components/responses/LockoutError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '410':
+          $ref: '#/components/responses/TerminalError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /mock-mail:
+    get:
+      tags: [mock-mail]
+      summary: 'List simulated mail (#12)'
+      description: |
+        The demo inbox — approval-link and OTP mails, newest first. `otpPlain`
+        is included ONLY in the simulated mail so the reviewer can drive the
+        flow (the stored OTP is a SHA-256 digest; the plaintext is never
+        persisted). Link form:
+        `https://<host>/approve?request_id=<id>&approver_token=<uuid>`.
+      operationId: listMockMail
+      responses:
+        '200':
+          description: Mail events, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MailEvent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  parameters:
+    RequestId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Purchase request id (UUID)
+    ApprovalRequestId:
+      description: Purchase request id (UUID) of the approval
+      in: path
+      required: true
+      name: requestId
+      schema:
+        type: string
+        format: uuid
+    ApproverToken:
+      description: Unique per-approver token from the approval link
+      in: path
+      required: true
+      name: token
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    User:
+      type: object
+      required: [name, email, position]
+      properties:
+        name:
+          type: string
+          example: Ana
+        email:
+          type: string
+          format: email
+          example: ana@example.com
+        position:
+          type: string
+          example: Analyst
+
+    CreateRequestInput:
+      type: object
+      required: [title, description, amount, requesterEmail, approverEmails]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Replace laptops
+        description:
+          type: string
+          minLength: 1
+          example: Swap 3 dev laptops
+        amount:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          multipleOf: 0.01
+          example: 4500.0
+        requesterEmail:
+          type: string
+          format: email
+          example: ruth@example.com
+        approverEmails:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            format: email
+          example: [ana@example.com, sven@example.com, luca@example.com]
+
+    RequestSummary:
+      type: object
+      required: [id, title, amount, currency, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+          const: USD
+        status:
+          $ref: '#/components/schemas/GlobalStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    RequestDetail:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - amount
+        - currency
+        - status
+        - createdBy
+        - approvers
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+          const: USD
+        status:
+          $ref: '#/components/schemas/GlobalStatus'
+        createdBy:
+          type: object
+          required: [email, name]
+          properties:
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+        approvers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/ApproverView'
+        createdAt:
+          type: string
+          format: date-time
+        evidenceKey:
+          type: string
+          description: Present ONLY after successful PDF generation (S3 key `reqs/<id>/evidence.pdf`)
+          example: reqs/123e4567-e89b-12d3-a456-426614174000/evidence.pdf
+        rejectedBy:
+          type: string
+          description: Email of the rejecting approver when status = REJECTED
+
+    ApproverView:
+      type: object
+      required: [email, name, status]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ApproverStatus'
+        signedAt:
+          type: string
+          format: date-time
+          description: Present when status = SIGNED (the consent-signature timestamp)
+        rejectedAt:
+          type: string
+          format: date-time
+          description: Present when status = REJECTED
+
+    GlobalStatus:
+      type: string
+      enum: [PENDING, COMPLETED, REJECTED]
+
+    ApproverStatus:
+      type: string
+      enum: [PENDING, SIGNED, REJECTED]
+
+    OtpIssueResponse:
+      type: object
+      required: [expiresInSeconds]
+      properties:
+        expiresInSeconds:
+          type: integer
+          example: 180
+
+    OtpValidateResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+          const: true
+
+    WrongOtpError:
+      type: object
+      required: [error, message, attemptsRemaining]
+      properties:
+        error:
+          type: string
+          example: WrongOtpError
+        message:
+          type: string
+        attemptsRemaining:
+          type: integer
+          example: 2
+
+    MailEvent:
+      type: object
+      required: [id, to, type, subject, body, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        to:
+          type: string
+          format: email
+        type:
+          type: string
+          enum: [APPROVAL_LINK, OTP]
+        subject:
+          type: string
+        body:
+          type: string
+        link:
+          type: string
+          format: uri
+          description: Present for APPROVAL_LINK — `https://<host>/approve?request_id=<id>&approver_token=<uuid>`
+        otpPlain:
+          type: string
+          description: Present for OTP — the plain 6-digit code, demo disclosure ONLY
+          pattern: '^[0-9]{6}$'
+        createdAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Domain error class name, e.g. UnknownRequestError, TerminalRequestError
+        message:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Validation failed (empty fields, bad email, amount ≤ 0 or > 2 decimals, wrong approver count, malformed JSON)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: InvalidEmailError
+            message: Email must be a valid address
+    ConflictError:
+      description: Duplicate email (register) or already acted (approve/reject duplicate, OTP on acted token)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: AlreadyActedError
+            message: This approver already signed the request
+    NotFoundError:
+      description: Unknown request id, unknown token, or unknown registry email on create
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: UnknownRequestError
+            message: Request req-1 not found
+    LockoutError:
+      description: Approver is locked out (3 failed OTP attempts) or token not ACTIVE
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: LockedOutError
+            message: This approver is locked out
+    TerminalError:
+      description: Request is in a terminal global state (COMPLETED/REJECTED)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: TerminalRequestError
+            message: Request req-1 is already COMPLETED; no OTP flow is offered
+    ServerError:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+x-curl-flows:
+  description: |
+    End-to-end demo flow (serverless-offline, stage /dev). Replace ID/TOKEN with
+    values from the responses and /mock-mail. The complete step-by-step guide
+    with expected status codes lives in MANUAL-TESTING.md.
+  flows:
+    register-users:
+      summary: 'Register the cast (1 requester + 3 approvers)'
+      command: |
+        for u in "Ruth|ruth@example.com|Manager" "Ana|ana@example.com|Analyst" "Sven|sven@example.com|Director" "Luca|luca@example.com|Compliance"; do
+          IFS='|' read -r n m p <<< "$u"
+          curl -s -o /dev/null -X POST http://localhost:4000/dev/api/users \
+            -H "Content-Type: application/json" -d "{\"name\":\"$n\",\"email\":\"$m\",\"position\":\"$p\"}"
+        done
+      expect: 4x 201
+    create-request:
+      summary: 'Create a request'
+      command: |
+        curl -s -X POST http://localhost:4000/dev/api/purchase-requests \
+          -H "Content-Type: application/json" \
+          -d '{"title":"Replace laptops","description":"Swap 3 dev laptops","amount":4500.00,"requesterEmail":"ruth@example.com","approverEmails":["ana@example.com","sven@example.com","luca@example.com"]}'
+      expect: '201 RequestDetail {status: PENDING, approvers: [3x PENDING]} — copy the id'
+    list-mail:
+      summary: 'Open the demo inbox and copy one approval link + its OTP'
+      command: curl -s http://localhost:4000/dev/mock-mail
+      expect: '200 MailEvent[] — APPROVAL_LINK rows carry link=..., OTP rows carry otpPlain=...'
+    approve-all:
+      summary: 'For each approver: issue OTP → validate → approve (3x)'
+      command: |
+        # per approver, replace ID/TOKEN/CODE
+        curl -s -X POST http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp
+        curl -s -X POST http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp/validate \
+          -H "Content-Type: application/json" -d '{"code":"123456"}'
+        curl -s -X POST http://localhost:4000/dev/api/approvals/ID/token/TOKEN/approve
+      expect: '201 issue → 200 valid → 201 (3rd approve → COMPLETED)'
+    download-evidence:
+      summary: 'Download the generated PDF'
+      command: |
+        curl -s -D - -o evidence.pdf -H "Accept: application/pdf" \
+          http://localhost:4000/dev/api/purchase-requests/ID/evidence.pdf
+      expect: '200 application/pdf, real binary bytes'
