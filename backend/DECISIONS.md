@@ -225,4 +225,19 @@
 - **Known gap + evolution — permanent-404 recovery (fresh-review FIX 4, documented, NOT implemented)**: the ONLY trigger for generation is the completion-CAS winner, which fires exactly once; a replay of the approve call dies at Step A (already-acted → 409), so a failed generation has NO automatic second chance — the request stays `COMPLETED` with download 404 forever (spec-compliant, but operationally dead). Two documented evolutions, both cheap once needed:
   1. **Manual retry endpoint** (recommended for the demo): `POST /api/purchase-requests/{id}/evidence/retry` — idempotent re-generate when `status == COMPLETED && !evidenceKey` (else 409/404); the same generate → put → `recordEvidence` path with the `attribute_not_exists(evidenceKey)` guard, so it is safe under concurrent retries.
   2. **SQS/Step Functions consumer** (the async evolution of tradeoff (c)): a worker drains a `evidence.generate` queue and runs the same path — redeliveries are idempotent by the same existence-key guard.
-  - **Interview line**: "A failed generation is a spec-compliant permanent 404 today — the completion trigger fires once. The documented fix is an idempotent retry endpoint or the SQS consumer; both reuse the existing generate → put → record path with the `attribute_not_exists(evidenceKey)` guard, so they're safe to add later without touching the domain."
+   - **Interview line**: "A failed generation is a spec-compliant permanent 404 today — the completion trigger fires once. The documented fix is an idempotent retry endpoint or the SQS consumer; both reuse the existing generate → put → record path with the `attribute_not_exists(evidenceKey)` guard, so they're safe to add later without touching the domain."
+
+---
+
+## 24. Release & docs (PR #8): OpenAPI as the driving contract + deploy runbook
+- **Tradeoff (a) — where the API contract lives**: a machine-readable OpenAPI file vs prose tables only.
+  - **Decision**: `backend/docs/openapi.yaml` (OpenAPI 3.0) mirrors `design-api.md` as the machine-readable, reviewer-driving contract — all 12 endpoints with schemas, the error→HTTP policy, and example curl flows.
+  - **Why**: a reviewer can drive the demo straight from the spec; it doubles as Swagger/OpenAPI documentation for the assignment deliverable.
+  - **Costs**: two files to keep in sync (`design-api.md` + `openapi.yaml`) — both are updated together when the contract changes; the handlers remain the final authority, and drift is a documented risk.
+- **Tradeoff (b) — deploying from the sandbox**: run `sls deploy` here vs document the exact steps.
+  - **Decision**: the sandbox has no real AWS credentials (only dummy local ones — the deploy attempt failed with "The security token included in the request is invalid"), so PR #8 **documents** the exact deploy + post-deploy check steps in the root README with placeholders; actual deployment is a pending follow-up from an environment with an AWS profile.
+  - **Why**: the assignment's deploy deliverable is the runbook + contract; executing it needs credentials this environment does not have. Failing the PR over it would block the docs, not improve the deploy.
+  - **Pre-deploy gotcha recorded**: `DYNAMODB_LOCAL` in `backend/.env` must be emptied before deploy (serverless-dotenv-plugin injects it into deployed functions, which would point DynamoDB clients at `localhost:8000`).
+- **Tradeoff (c) — APPROVER_BASE_URL**: the approval link host in local dev.
+  - **Decision**: `TokenIssuer` reads `APPROVER_BASE_URL` (default `http://localhost:4000`); the README instructs setting it to the **frontend origin** (`http://localhost:3000` locally, the CloudFront URL in production) so mailed links open the composed approver UI.
+  - **Why**: the link host is the frontend's concern (the approver remote), not the backend's; the env var decouples them.

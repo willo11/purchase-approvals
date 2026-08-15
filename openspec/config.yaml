@@ -30,10 +30,10 @@ rules:
   apply:
     - Follow existing code patterns
     tdd: false           # Test-first RED-GREEN-REFACTOR not enforced; coverage threshold IS enforced
-    test_command: "npm run test:ci"   # backend + host + requester + approver (root package.json)
+    test_command: "pnpm run test:ci"   # backend + host + requester + approver (root package.json)
   verify:
-    test_command: "npm run test:ci"
-    build_command: "npm run build:ci"
+    test_command: "pnpm run test:ci"
+    build_command: "pnpm run build:ci"
     coverage_threshold: 60   # Assignment requirement: >=60% coverage
 
 testing:
@@ -42,7 +42,7 @@ testing:
   reason: "Scaffolded in PR #0 bootstrap: backend Jest+ts-jest (node), frontend Jest+jsdom+RTL per app. strict_tdd stays false; coverage >=60% is enforced by thresholds in every jest config."
   test_runner:
     framework: jest
-    command: npm run test:ci
+    command: pnpm run test:ci
   layers:
     unit:
       available: true
@@ -55,7 +55,7 @@ testing:
       tool: null
   coverage:
     available: true
-    command: npm run test:ci
+    command: pnpm run test:ci
     threshold_requirement: 60
   quality:
     linter:
@@ -63,7 +63,7 @@ testing:
       command: null
     type_checker:
       available: true
-      command: npm --prefix backend run typecheck
+      command: pnpm -C backend run typecheck
     formatter:
       available: false
       command: null
