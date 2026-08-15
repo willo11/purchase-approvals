@@ -19,7 +19,7 @@ import StatusBadge from '@/components/StatusBadge';
  * R3 + R4: request metadata + per-approver status table; "Download PDF"
  * button ONLY when the global status is COMPLETED (blob GET #6).
  */
-export default function RequestDetailScreen() {
+export default function RequestDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [detail, setDetail] = useState(null);

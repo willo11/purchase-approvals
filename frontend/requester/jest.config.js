@@ -2,7 +2,7 @@ module.exports = {
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src'],
   testMatch: ['<rootDir>/src/**/*.test.{js,jsx}'],
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.js'],
+  setupFilesAfterEnv: ['<rootDir>/src/app/setupTests.js'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     // Mirrors the webpack `@` alias (components.json) for shadcn imports.
@@ -11,9 +11,9 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.{js,jsx}',
     '!src/**/*.test.{js,jsx}',
-    '!src/setupTests.js',
-    '!src/index.js',
-    '!src/bootstrap.js',
+    '!src/app/setupTests.js',
+    '!src/app/index.js',
+    '!src/app/bootstrap.js',
   ],
   coverageThreshold: {
     global: {

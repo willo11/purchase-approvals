@@ -20,7 +20,7 @@ import StatusBadge from '@/components/StatusBadge';
  * R1 + R5: list of requests, newest first, with empty state and error
  * surfacing that keeps the screen usable.
  */
-export default function RequestListScreen() {
+export default function RequestListPage() {
   const [requests, setRequests] = useState(null);
   const [error, setError] = useState(null);
   const refreshSignal = useRequestStore((s) => s.listRefreshSignal);

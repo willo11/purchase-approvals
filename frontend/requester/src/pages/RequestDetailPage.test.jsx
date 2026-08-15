@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import RequestDetailScreen from './RequestDetailScreen';
+import RequestDetailPage from './RequestDetailPage';
 import { apiClient } from '@/api/client';
 
 jest.mock('axios', () => {
@@ -51,13 +51,13 @@ function renderScreen(detail) {
   return render(
     <MemoryRouter initialEntries={['/r1']}>
       <Routes>
-        <Route path="/:id" element={<RequestDetailScreen />} />
+        <Route path="/:id" element={<RequestDetailPage />} />
       </Routes>
     </MemoryRouter>
   );
 }
 
-describe('RequestDetailScreen (R3 + R4)', () => {
+describe('RequestDetailPage (R3 + R4)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     global.URL.createObjectURL = jest.fn(() => 'blob:mock');
@@ -160,7 +160,7 @@ describe('RequestDetailScreen (R3 + R4)', () => {
     render(
       <MemoryRouter initialEntries={['/nope']}>
         <Routes>
-          <Route path="/:id" element={<RequestDetailScreen />} />
+          <Route path="/:id" element={<RequestDetailPage />} />
         </Routes>
       </MemoryRouter>
     );
