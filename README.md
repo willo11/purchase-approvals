@@ -249,6 +249,61 @@ file evidence.pdf    # must say "PDF document", not ASCII text
 
 <!-- Frontend deploy steps land in the 8.4 commit. -->
 
+### 8.4 — Frontend (3 bundles → S3 → CloudFront)
+
+The three Module Federation apps are independent static bundles — each goes to
+its own S3 bucket, and one CloudFront distribution fronts the **host** bucket
+(the host's `remoteEntry.js` tells the browser where the requester and approver
+remotes live, so their buckets must be reachable — public-read or an origin
+access identity on a second distribution).
+
+**Build each remote with the deployed API base URL** (validated locally: all
+three builds PASS with the default `http://localhost:4000`):
+
+```bash
+# The API base URL is compiled in via webpack DefinePlugin
+# (process.env.API_BASE_URL); point it at the deployed API Gateway stage.
+API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/dev \
+  pnpm -C frontend/host run build
+API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/dev \
+  pnpm -C frontend/requester run build
+API_BASE_URL=https://<api-id>.execute-api.<region>.amazonaws.com/dev \
+  pnpm -C frontend/approver run build
+```
+
+**Upload to S3 (static website hosting ON, index document `index.html`):**
+
+```bash
+aws s3 sync frontend/host/dist s3://purchase-approvals-host-<stage> --delete
+aws s3 sync frontend/requester/dist s3://purchase-approvals-requester-<stage> --delete
+aws s3 sync frontend/approver/dist s3://purchase-approvals-approver-<stage> --delete
+```
+
+**CloudFront:**
+
+1. Create a distribution with origin = the **host** bucket's website endpoint
+   (or use OAI for private buckets).
+2. Error page → `index.html` with 404 (SPA routing: `/requester/:id` and
+   `/approve` deep links must fall back to the host shell).
+3. Record the distribution domain name.
+
+**Record:** CloudFront URL = `https://<cloudfront-distribution>.cloudfront.net`
+
+**APPROVER_BASE_URL (deployed)** — set the backend env var to the CloudFront URL
+so mock-mail approval links open the composed approver UI:
+
+```bash
+# backend/.env (before `sls deploy`, see 8.3)
+APPROVER_BASE_URL=https://<cloudfront-distribution>.cloudfront.net
+```
+
+**Post-deploy check:** open
+`https://<cloudfront-distribution>.cloudfront.net/requester` — the composed UI
+must be STYLED (the CSS-ships-through-exposed-graph invariant; a raw unstyled
+page means the exposed module graph regressed — see MANUAL-TESTING PR #6 smoke
+check). Then create a request, read `/mock-mail`, open an approval link on the
+CloudFront URL and complete the OTP flow.
+
 ## Assumptions
 
 Authoritative list: `openspec/changes/purchase-approval-flow/proposal.md`. Key ones:
