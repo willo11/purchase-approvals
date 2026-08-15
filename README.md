@@ -11,8 +11,17 @@ It is **not** a payment system and **not** PKI/cryptographic signing — the "si
 pnpm install && pnpm -C backend install && pnpm -C frontend/host install && \
   pnpm -C frontend/requester install && pnpm -C frontend/approver install
 
-# 2. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
+# 2. Build the backend (dist/ is gitignored; serverless.yml loads handlers
+#    from dist/, so a fresh clone has nothing to serve until this runs)
+pnpm -C backend run build
+
+# 3. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
 pnpm run dev
+
+# 4. Create the local DynamoDB table (the dynamodb-local container is
+#    in-memory — it resets on every db:up and the table is NOT auto-created
+#    locally; run this after every `pnpm run dev` that restarts the backend)
+pnpm -C backend run db:create-table
 ```
 
 Open **http://localhost:3000/requester** → create a request → open
@@ -87,7 +96,7 @@ an approval link → enter the OTP → approve → repeat for 3 approvers →
 
 | Step | Action | Where | Result |
 |------|--------|-------|--------|
-| 1 | Register 4 employees (1 requester + 3 approvers) | `POST /api/users` or the create form's user selectors | Users in registry |
+| 1 | Register 4 employees (1 requester + 3 approvers) | **Register via curl first** — the create form only LISTS registered users, it has no inline registration (use the PR #1 curls in `MANUAL-TESTING.md`: 4× `POST /api/users`) | Users in registry |
 | 2 | Create a purchase request (title, amount, requester + 3 distinct approvers) | `http://localhost:3000/requester/new` | Request `PENDING`, 1 unique approval link per approver |
 | 3 | Open the demo inbox (backend JSON, not a frontend page) | `http://localhost:4000/dev/mock-mail` | Approval links + OTPs "sent" to each approver |
 | 4 | Open an approval link (copy `link` from mock-mail, replace host with `http://localhost:3000`) | Browser | OTP entry screen |
@@ -132,13 +141,18 @@ pnpm -C frontend/approver install
 ### Run everything
 
 ```bash
-pnpm run dev        # backend (:4000) + host (:3000) + requester (:3001) + approver (:3002)
+pnpm -C backend run build    # required on a fresh clone: dist/ is gitignored,
+                             # serverless.yml loads handlers from dist/
+pnpm run dev                 # backend (:4000) + host (:3000) + requester (:3001) + approver (:3002)
+pnpm -C backend run db:create-table   # required after every backend restart:
+                                      # the dynamodb-local table is in-memory
+                                      # and resets on db:up
 ```
 
 Or separately:
 
 ```bash
-pnpm run dev:back    # dynamodb-local + serverless-offline
+pnpm run dev:back    # dynamodb-local + serverless-offline (then db:create-table)
 pnpm run dev:front   # host + requester + approver
 ```
 
