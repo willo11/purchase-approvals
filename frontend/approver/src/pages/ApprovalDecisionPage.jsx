@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApprove } from '@/hooks/useApprove';
 import { useReject } from '@/hooks/useReject';
+import { isTransientError } from '@/lib/flow';
 import { useApprovalFlowStore } from '@/store/useApprovalFlowStore';
 
 /**
@@ -18,11 +19,26 @@ import { useApprovalFlowStore } from '@/store/useApprovalFlowStore';
  * backend records the registered snapshot name (spec R3). Reject goes through
  * a confirmation step and POSTs { confirm: true } (endpoint #11). Success
  * (and terminal-gate errors) move the flow to a terminal screen (R4).
+ *
+ * A TRANSIENT action failure (network/timeout/5xx) must not be a dead end:
+ * the buttons disable while the error shows, and "Try again" clears it and
+ * re-enables them. Terminal errors never land here (the hooks route them to
+ * the flow store), so every error shown on this screen is safe to clear.
  */
 export default function ApprovalDecisionPage() {
   const requestId = useApprovalFlowStore((s) => s.requestId);
-  const { submitting: approving, error: approveError, approve } = useApprove();
-  const { submitting: rejecting, error: rejectError, reject } = useReject();
+  const {
+    submitting: approving,
+    error: approveError,
+    approve,
+    clearError: clearApproveError,
+  } = useApprove();
+  const {
+    submitting: rejecting,
+    error: rejectError,
+    reject,
+    clearError: clearRejectError,
+  } = useReject();
 
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -65,6 +81,12 @@ export default function ApprovalDecisionPage() {
   }
 
   const actionError = approveError || rejectError;
+  const actionTransient = actionError ? isTransientError(actionError) : false;
+
+  const handleRetryAction = () => {
+    clearApproveError();
+    clearRejectError();
+  };
 
   return (
     <div className="mx-auto mt-10 max-w-xl space-y-6">
@@ -113,9 +135,22 @@ export default function ApprovalDecisionPage() {
             disabled={Boolean(actionError)}
           />
           {actionError && (
-            <p role="alert" className="text-sm text-destructive">
-              {actionError.message}
-            </p>
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            >
+              <p>{actionError.message}</p>
+              {actionTransient && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={handleRetryAction}
+                >
+                  Try again
+                </Button>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

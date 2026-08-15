@@ -59,3 +59,14 @@ export function terminalVariantFromError({ status, message, error } = {}) {
   }
   return null;
 }
+
+/**
+ * True for failures that are NOT terminal and SHOULD be retryable: network /
+ * timeout (status 0 from toErrorView) and 5xx server errors. Used by the
+ * decision page to offer a "Try again" affordance instead of leaving the
+ * Approve/Reject buttons dead after a transient failure. 4xx validation /
+ * auth errors are NOT retryable here (they mean the request was rejected).
+ */
+export function isTransientError({ status } = {}) {
+  return status === 0 || status >= 500;
+}

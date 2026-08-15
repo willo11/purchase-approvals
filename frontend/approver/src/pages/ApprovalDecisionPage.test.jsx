@@ -121,4 +121,32 @@ describe('ApprovalDecisionPage — R3 scenarios', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Laptops')).toBeInTheDocument();
   });
+
+  test('transient action error → buttons disabled → Try again → buttons enabled → action succeeds', async () => {
+    // Approve fails once with a transient network error, then succeeds.
+    apiClient.post.mockRejectedValueOnce(new Error('Network Error'));
+    apiClient.post.mockResolvedValueOnce({ data: { ...detailFixture, status: 'PENDING' } });
+
+    const user = userEvent.setup();
+    render(<ApprovalDecisionPage />);
+    await screen.findByText('Laptops');
+
+    // Transient failure: error shown, Approve/Reject disabled (no dead end).
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/network error/i);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeDisabled();
+
+    // Try again clears the transient error and re-enables the actions.
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled();
+
+    // The retried action succeeds → terminal screen.
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(useApprovalFlowStore.getState().terminalVariant).toBe(TERMINAL_VARIANTS.APPROVED)
+    );
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+  });
 });

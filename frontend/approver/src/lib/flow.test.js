@@ -1,4 +1,4 @@
-import { TERMINAL_VARIANTS, terminalVariantFromError } from './flow';
+import { TERMINAL_VARIANTS, isTransientError, terminalVariantFromError } from './flow';
 
 describe('terminalVariantFromError (state machine, task 7.5)', () => {
   test('403 → locked-out (token invalidated after 3 wrong codes)', () => {
@@ -55,5 +55,24 @@ describe('terminalVariantFromError (state machine, task 7.5)', () => {
     ).toBeNull();
     expect(terminalVariantFromError({})).toBeNull();
     expect(terminalVariantFromError(undefined)).toBeNull();
+  });
+});
+
+describe('isTransientError (retry affordance classifier)', () => {
+  test('network/timeout (status 0) and 5xx are retryable', () => {
+    expect(isTransientError({ status: 0 })).toBe(true);
+    expect(isTransientError({ status: 500 })).toBe(true);
+    expect(isTransientError({ status: 503 })).toBe(true);
+  });
+
+  test('4xx validation/auth errors are NOT retryable on this screen', () => {
+    expect(isTransientError({ status: 400 })).toBe(false);
+    expect(isTransientError({ status: 401 })).toBe(false);
+    expect(isTransientError({ status: 409 })).toBe(false);
+  });
+
+  test('missing status defaults to not-transient', () => {
+    expect(isTransientError()).toBe(false);
+    expect(isTransientError({})).toBe(false);
   });
 });

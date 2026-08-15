@@ -18,6 +18,9 @@ export function useReject() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  /** Drop a surfaced (transient) error so the decision buttons re-enable. */
+  const clearError = useCallback(() => setError(null), []);
+
   const reject = useCallback(async () => {
     setSubmitting(true);
     setError(null);
@@ -37,5 +40,5 @@ export function useReject() {
     }
   }, [requestId, approverToken, enterTerminal]);
 
-  return { submitting, error, reject };
+  return { submitting, error, reject, clearError };
 }

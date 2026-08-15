@@ -55,4 +55,14 @@ describe('useReject — reject with confirmation (R3, task 7.3)', () => {
     expect(result.current.error.status).toBe(0);
     expect(useApprovalFlowStore.getState().phase).toBe(FLOW_PHASES.DECISION);
   });
+
+  test('clearError drops the surfaced error so the buttons re-enable', async () => {
+    apiClient.post.mockRejectedValueOnce(new Error('Network Error'));
+    const { result } = renderHook(() => useReject());
+    await act(async () => result.current.reject());
+    expect(result.current.error).not.toBeNull();
+    await act(async () => result.current.clearError());
+    expect(result.current.error).toBeNull();
+    expect(useApprovalFlowStore.getState().phase).toBe(FLOW_PHASES.DECISION);
+  });
 });
