@@ -117,6 +117,13 @@ export class DynamoDbRequestRepository implements RequestRepository {
       new GetCommand({
         TableName: this.env.tableName,
         Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
+        // Strongly consistent read (fresh-review FIX 2): the REQ row carries
+        // the completion state AND the evidenceKey, so an eventually-consistent
+        // read could transiently hide a just-committed `COMPLETED`/`evidenceKey`
+        // — a download right after the 3rd approval could 404, and the
+        // pre-generation evidenceKey guard could see stale state. Same liveness
+        // rationale as the ConsistentRead on the approver-set query below.
+        ConsistentRead: true,
       })
     );
     const reqItem = reqResult.Item;

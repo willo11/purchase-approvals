@@ -139,8 +139,12 @@ describe('DynamoDbRequestRepository', () => {
     const [getCmd, queryCmd] = client.send.mock.calls.map(([c]) => c);
     expect(getCmd).toBeInstanceOf(GetCommand);
     expect(getCmd.input.Key).toEqual({ PK: 'REQ#req-1', SK: 'REQ#req-1' });
+    // strong consistency on the REQ read: a download/guard right after the 3rd
+    // approval must see the just-committed COMPLETED + evidenceKey (FIX 2)
+    expect(getCmd.input.ConsistentRead).toBe(true);
     expect(queryCmd).toBeInstanceOf(QueryCommand);
     expect(queryCmd.input.KeyConditionExpression).toBe('PK = :pk AND begins_with(SK, :appr)');
+    expect(queryCmd.input.ConsistentRead).toBe(true);
   });
 
   it('get returns undefined when the REQ item is missing', async () => {
