@@ -141,7 +141,7 @@ Verify: suite green, >=60%.
 
 ## PR #6 — requester-panel (frontend)
 
-> **Concept**: Micro-front-end split by bounded context, not by layer (Decisions 1). Host = shell + routing chassis that lazy-loads remotes. `requester` owns `/requester*`. State lives in the backend; apps never talk to each other — the APIs are the only contract (design-api mapping). Every axios call maps to endpoints #2/#3/#4/#5/#6.
+> **Concept**: Micro-front-end split by bounded context, not by layer (Decisions 1). Host = shell + routing chassis that lazy-loads remotes. `requester` owns `/requester*`. State lives in the backend; apps never talk to each other — the APIs are the only contract (design-api mapping). Every axios call maps to endpoints #2/#3/#4/#5/#6. **UI stack (Decisions): Tailwind + shadcn/ui components (copied per-remote, works with webpack 5 Module Federation), React Hook Form + @hookform/resolvers/zod for the create form (zod at the UX boundary — validation in the FORM, not in the domain), zustand for scoped local UI state only (selected request, list refresh) — backend remains the source of truth. UI copy is English.**
 
 - [ ] 6.1 Host shell: React.lazy+Suspense routes mounting remotes.
 - [ ] 6.2 `requester` list screen → `GET /api/purchase-requests`, empty-state (requester-panel R1), newest first.
