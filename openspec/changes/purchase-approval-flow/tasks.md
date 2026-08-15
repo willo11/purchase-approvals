@@ -159,13 +159,13 @@ Verify: remote suite green, build ok.
 
 > **Concept**: `approver` remote owns `/approve`. Driver = the terminal gate: terminal state overrides everything. OTP entry, lockout, and regenerate are distinct UI states driven by HTTP codes (#7/#8/#9). Approve never asks for a name (registered snapshot), Reject requires confirm (approver-flow R1-R4). Calls map to #7-#11.
 
-- [ ] 7.1 Link resolution screen: read `request_id` + `approver_token`; `POST .../otp` → terminal (410) / lockout (403) / OTP entry (R1).
-- [ ] 7.2 OTP entry: 6-digit input → `POST .../otp/validate`; wrong code shows `{attemptsRemaining}`; 3rd → lockout screen; expired → "generate new OTP" `POST .../otp/regenerate` (R2).
-- [ ] 7.3 Detail + Approve/Reject: show request, Approve → `POST .../approve` (no name input), Reject → `POST .../reject` with `{confirm:true}` (R3).
-- [ ] 7.4 Terminal screens: already-signed / already-rejected / completed; no actions (R4).
-- [ ] 7.5 axios service + state machine (gate → entry → detail → terminal); 410/403/401 mapping.
-- [ ] 7.6 Jest+RTL: rejected link shows informational screen; correct OTP advances; lockout after 3rd; regenerate; approve-without-name; post-action terminality (scenarios R1-R4).
-- [ ] 7.7 Coverage >=60%; DECISIONS.md frontend entry.
+- [x] 7.1 Link resolution screen: read `request_id` + `approver_token`; `POST .../otp` → terminal (410) / lockout (403) / OTP entry (R1).
+- [x] 7.2 OTP entry: 6-digit input → `POST .../otp/validate`; wrong code shows `{attemptsRemaining}`; 3rd → lockout screen; expired → "generate new OTP" `POST .../otp/regenerate` (R2).
+- [x] 7.3 Detail + Approve/Reject: show request, Approve → `POST .../approve` (no name input), Reject → `POST .../reject` with `{confirm:true}` (R3).
+- [x] 7.4 Terminal screens: already-signed / already-rejected / completed; no actions (R4).
+- [x] 7.5 axios service + state machine (gate → entry → detail → terminal); 410/403/401 mapping.
+- [x] 7.6 Jest+RTL: rejected link shows informational screen; correct OTP advances; lockout after 3rd; regenerate; approve-without-name; post-action terminality (scenarios R1-R4).
+- [x] 7.7 Coverage >=60%; DECISIONS.md frontend entry.
 
 Verify: remote suite green, build ok.
 

@@ -5,6 +5,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/app/setupTests.js'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    // Mirrors the webpack `@` alias (components.json) for shadcn imports.
+    '^@/(.*)$': '<rootDir>/src/$1',
   },
   collectCoverageFrom: [
     'src/**/*.{js,jsx}',
