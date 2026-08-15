@@ -50,4 +50,31 @@ export interface ApproverRepository {
    * rejected → 403).
    */
   resetAttemptsIfActive(requestId: string, email: string): Promise<boolean>;
+
+  /**
+   * Step A of an approve (design-concurrency §3): atomically records a
+   * signature on this approver's durable row. A compare-and-swap
+   * (`attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)`)
+   * makes it per-approver idempotent — only ONE concurrent write can pass, so
+   * the same approver can never sign twice (R4). `name` is the REGISTERED
+   * snapshot name (R1), never typed. Returns `true` if this call recorded the
+   * signature, `false` if the approver already acted (→ 409).
+   */
+  markSigned(
+    requestId: string,
+    email: string,
+    signature: { name: string; timestamp: string }
+  ): Promise<boolean>;
+
+  /**
+   * Step A of a reject (design-concurrency §4): atomically records a rejection
+   * on this approver's durable row with the same compare-and-swap condition as
+   * `markSigned`. Returns `true` if this call recorded the rejection, `false`
+   * if the approver already acted (→ 409).
+   */
+  markRejected(
+    requestId: string,
+    email: string,
+    signature: { name: string; timestamp: string }
+  ): Promise<boolean>;
 }

@@ -119,6 +119,54 @@ export class DynamoDbApproverRepository implements ApproverRepository {
     }
   }
 
+  async markSigned(
+    requestId: string,
+    email: string,
+    signature: { name: string; timestamp: string }
+  ): Promise<boolean> {
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
+          UpdateExpression: 'SET status_signed = :now, signature = :sig',
+          // Step A approve CAS (design-concurrency §3): per-approver idempotency.
+          ConditionExpression:
+            'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)',
+          ExpressionAttributeValues: { ':now': signature.timestamp, ':sig': signature },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
+  }
+
+  async markRejected(
+    requestId: string,
+    email: string,
+    signature: { name: string; timestamp: string }
+  ): Promise<boolean> {
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
+          UpdateExpression: 'SET status_rejected = :now, signature = :sig',
+          // Step A reject CAS (design-concurrency §4).
+          ConditionExpression:
+            'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)',
+          ExpressionAttributeValues: { ':now': signature.timestamp, ':sig': signature },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
+  }
+
   async resetAttemptsIfActive(requestId: string, email: string): Promise<boolean> {
     try {
       await this.env.documentClient.send(
