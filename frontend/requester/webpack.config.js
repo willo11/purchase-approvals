@@ -32,6 +32,9 @@ module.exports = {
       shared: {
         react: { singleton: true },
         'react-dom': { singleton: true },
+        // Rendered inside the host's <BrowserRouter>; must resolve to the SAME
+        // instance as the host so the router context survives the boundary.
+        'react-router-dom': { singleton: true },
       },
     }),
     new HtmlWebpackPlugin({

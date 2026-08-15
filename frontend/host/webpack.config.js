@@ -17,6 +17,10 @@ module.exports = {
         exclude: /node_modules/,
         use: 'babel-loader',
       },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader', 'postcss-loader'],
+      },
     ],
   },
   resolve: {
@@ -32,6 +36,10 @@ module.exports = {
       shared: {
         react: { singleton: true },
         'react-dom': { singleton: true },
+        // The requester/approver remotes render their own <Routes> inside the
+        // host's <BrowserRouter>. They MUST resolve the SAME react-router-dom
+        // instance, otherwise the router context is lost across the boundary.
+        'react-router-dom': { singleton: true },
       },
     }),
     new HtmlWebpackPlugin({
