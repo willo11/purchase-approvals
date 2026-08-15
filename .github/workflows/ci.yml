@@ -45,6 +45,21 @@ jobs:
       - name: Unit tests (backend)
         run: pnpm -C backend test
 
+      # Frontend (PR #6+): build the three Module Federation apps and run each
+      # remote's jest suite so the 60% coverage thresholds and the MF builds
+      # are enforced on every push, not just locally.
+      - name: Build frontend (host + requester + approver)
+        run: |
+          pnpm -C frontend/host run build
+          pnpm -C frontend/requester run build
+          pnpm -C frontend/approver run build
+
+      - name: Frontend tests (host + requester + approver)
+        run: |
+          pnpm -C frontend/host test
+          pnpm -C frontend/requester test
+          pnpm -C frontend/approver test
+
       # The integration suite (incl. the CAS concurrency races) is gated by
       # DYNAMODB_LOCAL and silently skipped without it — always run it here.
       - name: Wait for dynamodb-local
