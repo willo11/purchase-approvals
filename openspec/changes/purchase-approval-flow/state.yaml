@@ -1,7 +1,7 @@
 change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
-current_phase: apply
+current_phase: verify
 current_pr: 8
 
 dag:
@@ -9,41 +9,32 @@ dag:
   specs: done
   design: done
   tasks: done
-  apply: in-progress
-  verify: pending
+  apply: done
+  verify: in-progress
   archive: pending
 
 branch:
   base: main
-  active: feat/release-docs
-  applied_prs: [0, 1, 2, 3, 4, 5, 6, 7]
-  pending_prs: [8]
+  active: main
+  applied_prs: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  pending_prs: []
 
 notes: |
-  PR #0 bootstrap merged. PR #1 user-registry MERGED. PR #2 purchase-request MERGED
-  (aggregate + 4 ports, TransactWriteItems, unknown-email 404). PR #3 approver-otp
-  MERGED (OTP gate: sha256, TTL item, in-code expiry, atomic lockout + consume CAS,
-  mock-mail). PR #4 approval-signature MERGED (concurrency core: Step A + Step B CAS
-  `!completedAt AND #status=pending`, reject first-wins, validatedAt/401, CI). PR #5
-  pdf-evidence MERGED (PdfGenerator pdf-lib, S3EvidenceStore behind port, deterministic
-  evidenceKey + idempotent guard, binaryMediaTypes fix, download 200/404).
-  PRE-#7 refactor MERGED (5100cf4): per-remote folder convention applied to all 3 MF
-  apps (app/api/components(+ui)/hooks/lib/pages/routes/store, colocated tests).
-  PR #6 requester-panel MERGED (host shell + requester remote: list/create/detail,
-  RHF+zod, Tailwind+shadcn, zustand scoped, English copy; CSS-through-exposed-module
-  CRITICAL fixed).
-  Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
+  ALL 8 PRs MERGED — backend complete (#0-#5: user-registry, purchase-request,
+  approver-otp, approval-signature, pdf-evidence) + frontend complete (#6 requester-panel,
+  #7 approver-flow) + folder refactor + release/docs (#8).
+  PR #8 release MERGED: README runbook (consent-signature framing, auth disclaimer,
+  literally-followable quick path), OpenAPI 3.0 (12 endpoints + health, error→HTTP
+  policy), deploy documented-pending (no AWS creds in sandbox — exact commands +
+  placeholders), host MF remote URLs parameterized (REQUESTER_REMOTE_URL /
+  APPROVER_REMOTE_URL), DECISIONS reconciled (#24 backend, #6/#7/#8 frontend),
+  English sweep clean (scripts + docs).
+  Fresh review caught + fixed 3 CRITICALs: /mock-mail URL (real inbox is backend
+  :4000/dev/mock-mail), host hardcoded localhost remotes (now env-driven), quick path
+  missing backend build + db:create-table. OpenAPI 404 on regenerate + rejectedBy removed.
+  Full suite: 348 tests (backend 194 @93.56%, host 3, requester 46 @95.37%, approver
+  105 @98.31%), integration 221 @dynamodb-local, CI green. Deploy pending: run
+  `pnpm -C backend exec sls deploy` from an AWS-profile env + fill README placeholders.
+  NEXT: sdd-verify (final validation against specs) → sdd-archive.
 
-  PR #7 approver-flow MERGED — LAST functional PR. Approver remote owns single /approve
-  entry (?request_id&approver_token): gate-driven state machine mapped to HTTP codes
-  (410/403/404/401/409) via lib/flow.js classifier; ApprovalLandingPage, OtpEntryPage,
-  OtpLockedOutPage, ApprovalDecisionPage (approve w/o name, reject w/ confirm),
-  TerminalPage variants; zustand flow store; folder convention + shadcn + English copy;
-  standalone AND composed (host /approve). Fresh review: flow correct (verified every
-  branch vs handlers); fixed CRITICAL focused-test guard extended to ALL frontends
-  (frontend/scripts/no-focused-tests.mjs + pretest hooks, proven with temp .only);
-  pinned 409/410 error-body contract in backend tests (classifier coupling now protected);
-  retry affordance after transient action error; expiresInSeconds refreshed on regenerate.
-  DECISIONS frontend #8. MANUAL-TESTING pending PR #7/#8 sections.
-
-updated_at: 2026-08-15T02:00:00
+updated_at: 2026-08-15T02:40:00
