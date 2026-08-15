@@ -70,7 +70,7 @@ All under `/api/approvals/{requestId}/token/{token}`.
 ### host (shell)
 - Route `/` landing/menu → no API (static shell).
 
-### `requester` remote — routes `/requester`, `/requester/nueva`, `/requester/:id`
+### `requester` remote — routes `/requester`, `/requester/new`, `/requester/:id`
 | Screen / action | Endpoint |
 |---|---|
 | Load list | #4 GET /api/purchase-requests |
