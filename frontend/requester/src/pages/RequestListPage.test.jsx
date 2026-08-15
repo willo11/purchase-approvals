@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import RequestListScreen from './RequestListScreen';
+import RequestListPage from './RequestListPage';
 import { apiClient } from '@/api/client';
 
 jest.mock('axios', () => {
@@ -34,12 +34,12 @@ const twoRequests = [
 function renderScreen() {
   return render(
     <MemoryRouter initialEntries={['/']}>
-      <RequestListScreen />
+      <RequestListPage />
     </MemoryRouter>
   );
 }
 
-describe('RequestListScreen (R1 + R5)', () => {
+describe('RequestListPage (R1 + R5)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

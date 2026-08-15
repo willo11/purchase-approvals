@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import CreateRequestScreen from './CreateRequestScreen';
+import CreateRequestPage from './CreateRequestPage';
 import { apiClient } from '@/api/client';
 
 jest.mock('axios', () => {
@@ -29,7 +29,7 @@ function renderScreen() {
   return render(
     <MemoryRouter initialEntries={['/new']}>
       <Routes>
-        <Route path="/new" element={<CreateRequestScreen />} />
+        <Route path="/new" element={<CreateRequestPage />} />
         <Route path="/:id" element={<DetailStub />} />
       </Routes>
     </MemoryRouter>
@@ -55,7 +55,7 @@ async function fillForm(user) {
   }
 }
 
-describe('CreateRequestScreen (R2)', () => {
+describe('CreateRequestPage (R2)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     apiClient.get.mockResolvedValue({ data: users });

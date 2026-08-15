@@ -80,7 +80,7 @@ const APPROVER_FIELDS = [
   { name: 'approver3', label: 'Approver 3' },
 ];
 
-export default function CreateRequestScreen() {
+export default function CreateRequestPage() {
   const navigate = useNavigate();
   const bumpListRefresh = useRequestStore((s) => s.bumpListRefresh);
   const [users, setUsers] = useState([]);
