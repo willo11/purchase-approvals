@@ -110,14 +110,14 @@ Verify: suite green, >=60%. Flag if near 800 — keep PDF handler out.
 
 > **Concept**: The interview-core concurrency decision. The REQUEST item is the single CAS lock (`ConditionExpression` = compare-and-swap). Approve: Step A approver commit, then read set; only when 3 signed issue Step B completion CAS (`attribute_not_exists(completedAt)`) — exactly one writer wins, loser gets 409 and must NOT generate. Reject: approver commit, then REQ CAS `status=PENDING AND attribute_not_exists(rejectedAt)` — only first reject wins; if a concurrent approve already CAS'd `COMPLETED`, reject loses (design-concurrency §3,§4).
 
-- [ ] 4.1 `application/ApproveRequest.ts`: GateChain (terminal/lockout/already-acted); Step A `UpdateItem APPR status_signed` cond `attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)`; signature = registered snapshot name + timestamp (spec R1 — no typed name).
-- [ ] 4.2 Completion: read approver set; count `status_signed`; if ==3 issue Step B REQ CAS `attribute_not_exists(completedAt)`; on `ConditionalCheckFailed` re-read and return state, DO NOT generate (R3/R4).
-- [ ] 4.3 `application/RejectRequest.ts`: Step A `status_rejected` cond; Step B REQ CAS `status=PENDING AND attribute_not_exists(rejectedAt)` (R2 terminal global; other links blocked informational).
-- [ ] 4.4 Define `EvidenceGeneratorPort` (used by the completion CAS winner; implemented PR #5).
-- [ ] 4.5 `api/handlers/signature.ts`: `approve` (201/404/401/409/410), `reject` `{confirm:true}` same codes (design-api).
-- [ ] 4.6 Unit tests: approve uses registered name (R1); signature recorded once + no double-sign (R4); reject terminal + blocks others (R2); third-signature completes (R3); **assert emitted `ConditionExpression`** for both CAS steps on fake repo.
-- [ ] 4.7 Integration CAS tests (dynamodb-local): `Promise.all` two concurrent approves → exactly one `completedAt`, both signatures recorded; approve-vs-reject race → exactly one winner; same-approver repeat → 409.
-- [ ] 4.8 DECISIONS.md (single CAS lock, approve-vs-reject single winner).
+- [x] 4.1 `application/ApproveRequest.ts`: GateChain (terminal/lockout/already-acted); Step A `UpdateItem APPR status_signed` cond `attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)`; signature = registered snapshot name + timestamp (spec R1 — no typed name).
+- [x] 4.2 Completion: read approver set; count `status_signed`; if ==3 issue Step B REQ CAS `attribute_not_exists(completedAt)`; on `ConditionalCheckFailed` re-read and return state, DO NOT generate (R3/R4).
+- [x] 4.3 `application/RejectRequest.ts`: Step A `status_rejected` cond; Step B REQ CAS `status=PENDING AND attribute_not_exists(rejectedAt)` (R2 terminal global; other links blocked informational).
+- [x] 4.4 Define `EvidenceGeneratorPort` (used by the completion CAS winner; implemented PR #5).
+- [x] 4.5 `api/handlers/signature.ts`: `approve` (201/404/401/409/410), `reject` `{confirm:true}` same codes (design-api).
+- [x] 4.6 Unit tests: approve uses registered name (R1); signature recorded once + no double-sign (R4); reject terminal + blocks others (R2); third-signature completes (R3); **assert emitted `ConditionExpression`** for both CAS steps on fake repo.
+- [x] 4.7 Integration CAS tests (dynamodb-local): `Promise.all` two concurrent approves → exactly one `completedAt`, both signatures recorded; approve-vs-reject race → exactly one winner; same-approver repeat → 409.
+- [x] 4.8 DECISIONS.md (single CAS lock, approve-vs-reject single winner).
 
 Verify: suite green, >=60%. Near-budget — monitor.
 
