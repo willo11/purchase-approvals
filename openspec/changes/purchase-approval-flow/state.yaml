@@ -2,7 +2,7 @@ change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
 current_phase: apply
-current_pr: 5
+current_pr: 6
 
 dag:
   proposal: done
@@ -15,29 +15,31 @@ dag:
 
 branch:
   base: main
-  active: feat/pdf-evidence
-  applied_prs: [0, 1, 2, 3, 4]
-  pending_prs: [5, 6, 7, 8]
+  active: feat/requester-panel
+  applied_prs: [0, 1, 2, 3, 4, 5]
+  pending_prs: [6, 7, 8]
 
 notes: |
   PR #0 bootstrap merged. PR #1 user-registry MERGED (82b71c1). PR #2 purchase-request
   MERGED (aggregate + 4 ports, TransactWriteItems create, unknown-email 404 fixed).
   PR #3 approver-otp MERGED (OTP gate: sha256 hash-only, own TTL item, in-code expiry,
-  atomic lockout single UpdateItem, atomic one-time consume CAS, mock-mail inbox;
-  concurrency tests vs dynamodb-local; DECISIONS #19 hardened + #20 CAS-vs-idempotency
-  + #21 mock-mail-as-outbox).
+  atomic lockout single UpdateItem, atomic one-time consume CAS, mock-mail inbox).
+  PR #4 approval-signature MERGED (concurrency core: shared gate w/ 4th check 409,
+  Step A per-approver CAS + Step B REQ CAS `!completedAt AND #status=pending`,
+  reject first-wins, completed XOR rejected, validatedAt/401, EvidenceGeneratorPort,
+  ConsistentRead trigger, CI workflow).
   Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
 
-  PR #4 approval-signature MERGED — the concurrency core: shared ApproverGate with 4th
-  check (already-acted → 409); approve = Step A per-approver CAS (no double-sign) + Step B
-  REQ-level completion CAS `attribute_not_exists(completedAt) AND #status = :pending`;
-  reject = Step A + Step B CAS `status=PENDING AND !rejectedAt` (first-reject-wins);
-  completed XOR rejected by construction; signature = registered snapshot name + timestamp
-  (R1); validated-OTP precondition enforced via durable validatedAt marker → 401;
-  EvidenceGeneratorPort defined (stub; real PDF PR #5); ConsistentRead on completion trigger.
-  Fresh review caught + fixed CRITICAL: completeIfAbsent lacked status=PENDING → reject-then-
-  complete could set both flags (probe: 8/20). Fixed symmetric CAS + repo-level race test
-  (exactly-one-winner). CI added (.github/workflows/ci.yml with dynamodb-local + anti-.only
-  guard since Jest 29 dropped forbidOnly). DECISIONS #22. MANUAL-TESTING PR #4 section.
+  PR #5 pdf-evidence MERGED — EvidenceGeneratorPort real (PdfGenerator pdf-lib +
+  Helvetica, zero native deps), S3EvidenceStore behind EvidenceStorePort (deterministic
+  evidenceKey reqs/<id>/evidence.pdf, in-memory store seam for tests), completion-CAS
+  winner: generate → put → recordEvidence (attribute_not_exists(evidenceKey) idempotent),
+  failure keeps COMPLETED + 404 (R4); download endpoint 200 application/pdf / 404.
+  Fresh review caught + fixed CRITICAL: API Gateway binaryMediaTypes missing → deployed
+  download would serve base64 TEXT with lying Content-Type (offline/tests bypass the
+  boundary). Fixed binaryMediaTypes ['application/pdf','*/*'] + deploy-only note;
+  ConsistentRead on REQ get; removed dead StubEvidenceGenerator; documented retry/
+  recovery evolution (permanent-404 gap, SQS/retry endpoint deferred). DECISIONS #23.
+  MANUAL-TESTING PR #5 section + checklist.
 
-updated_at: 2026-08-14T23:00:00
+updated_at: 2026-08-15T00:10:00
