@@ -130,6 +130,12 @@ export class DynamoDbRequestRepository implements RequestRepository {
           ':pk': `REQ#${id}`,
           ':appr': APPR_PREFIX,
         },
+        // Strongly consistent read of the approver set: two concurrent signers
+        // must each observe the OTHER's committed Step A write, or neither
+        // would reach the completion CAS and the request would stick PENDING
+        // forever (fresh-review FIX 2). A stale eventually-consistent read can
+        // only ever under-count signed approvers.
+        ConsistentRead: true,
       })
     );
 
