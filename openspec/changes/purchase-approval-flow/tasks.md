@@ -127,13 +127,13 @@ Verify: suite green, >=60%. Near-budget — monitor.
 
 > **Concept**: pdf-lib with standard `StandardFonts.Helvetica` — pure TS, zero native deps for Lambda (Decisions 7). "Requester" resolved from `createdBy.name`. PDF idempotency via deterministic `evidenceKey` (`reqs/<id>/evidence.pdf`) + `attribute_not_exists(evidenceKey)` guard; generation failure keeps `COMPLETED`, download 404 (spec R4).
 
-- [ ] 5.1 Implement `EvidenceGeneratorPort` (from 4.4): `infrastructure/PdfGenerator.ts` — pdf-lib, request data + "Requester: <createdBy.name>" + 3 signature rows (name + timestamp) (spec R1).
-- [ ] 5.2 `infrastructure/S3EvidenceStore.ts` (`PutObject` evidenceKey `reqs/<id>/evidence.pdf`, `ContentType: application/pdf`, `GetObject`) (R2).
-- [ ] 5.3 Wire completion: guard `attribute_not_exists(evidenceKey)` read before generate; on CAS win generate→S3→`UpdateItem REQ SET evidenceKey`; on failure log, keep `COMPLETED`, no `evidenceKey`.
-- [ ] 5.4 `api/handlers/evidence.ts` `download`: 200 `application/pdf` when exists; 404 if not completed/not found (R3).
-- [ ] 5.5 Unit tests: PdfGenerator output contains "Requester: Carol" + 3 rows; failure keeps `COMPLETED`; download 200/404 (spec R1/R3/R4).
-- [ ] 5.6 Integration (dynamodb-local): 3rd approve triggers generation, evidenceKey set, GET returns PDF bytes.
-- [ ] 5.7 DECISIONS.md (pdf-lib Helvetica, existence-key idempotency).
+- [x] 5.1 Implement `EvidenceGeneratorPort` (from 4.4): `infrastructure/PdfGenerator.ts` — pdf-lib, request data + "Requester: <createdBy.name>" + 3 signature rows (name + timestamp) (spec R1).
+- [x] 5.2 `infrastructure/S3EvidenceStore.ts` (`PutObject` evidenceKey `reqs/<id>/evidence.pdf`, `ContentType: application/pdf`, `GetObject`) (R2).
+- [x] 5.3 Wire completion: guard `attribute_not_exists(evidenceKey)` read before generate; on CAS win generate→S3→`UpdateItem REQ SET evidenceKey`; on failure log, keep `COMPLETED`, no `evidenceKey`.
+- [x] 5.4 `api/handlers/evidence.ts` `download`: 200 `application/pdf` when exists; 404 if not completed/not found (R3).
+- [x] 5.5 Unit tests: PdfGenerator output contains "Requester: Carol" + 3 rows; failure keeps `COMPLETED`; download 200/404 (spec R1/R3/R4).
+- [x] 5.6 Integration (dynamodb-local): 3rd approve triggers generation, evidenceKey set, GET returns PDF bytes.
+- [x] 5.7 DECISIONS.md (pdf-lib Helvetica, existence-key idempotency).
 
 Verify: suite green, >=60%.
 
