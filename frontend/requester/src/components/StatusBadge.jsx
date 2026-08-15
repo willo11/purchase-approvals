@@ -13,8 +13,6 @@ const VARIANT_BY_STATUS = {
  */
 export default function StatusBadge({ status, children }) {
   return (
-    <Badge variant={VARIANT_BY_STATUS[status] ?? 'secondary'} data-testid="status-badge">
-      {children}
-    </Badge>
+    <Badge variant={VARIANT_BY_STATUS[status] ?? 'secondary'}>{children}</Badge>
   );
 }

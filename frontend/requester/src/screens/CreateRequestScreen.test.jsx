@@ -111,6 +111,61 @@ describe('CreateRequestScreen (R2)', () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
+  test('FIX2: empty amount shows "Amount is required" (not coerced to 0)', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(screen.getByRole('button', { name: 'Create request' }));
+
+    expect(
+      await screen.findByText('Amount is required')
+    ).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  test('FIX2: amount 0 fails with the positive-amount error', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.type(screen.getByLabelText('Amount (USD)'), '0');
+    await user.click(screen.getByRole('button', { name: 'Create request' }));
+
+    expect(
+      await screen.findByText('Amount must be greater than 0')
+    ).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  test('FIX2: amount with more than 2 decimals fails client-side (mirrors backend)', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.type(screen.getByLabelText('Amount (USD)'), '1.234');
+    await user.click(screen.getByRole('button', { name: 'Create request' }));
+
+    expect(
+      await screen.findByText('Amount can have at most 2 decimal places')
+    ).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  test('FIX2: amount with exactly 2 decimals passes client validation', async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    // The only client error in this scenario would be the decimals refine;
+    // filling the rest keeps the assertion focused on the amount rule.
+    await user.type(screen.getByLabelText('Title'), 'Monitors');
+    await user.type(screen.getByLabelText('Description'), 'Displays');
+    await user.type(screen.getByLabelText('Amount (USD)'), '12.34');
+    await user.click(screen.getByRole('button', { name: 'Create request' }));
+
+    expect(
+      screen.queryByText('Amount can have at most 2 decimal places')
+    ).not.toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled(); // still blocked by empty selects
+  });
+
   test('R2: requester cannot equal an approver (option excluded)', async () => {
     const user = userEvent.setup();
     renderScreen();
@@ -145,6 +200,28 @@ describe('CreateRequestScreen (R2)', () => {
       await screen.findByText('Approver email not registered')
     ).toBeInTheDocument();
     expect(screen.queryByText('detail-screen')).not.toBeInTheDocument();
+  });
+
+  test('R2 (design-api #3): unknown registry email surfaces the 404 and stays on the form', async () => {
+    apiClient.post.mockRejectedValue({
+      response: {
+        status: 404,
+        data: { error: 'UnknownUserError', message: 'Unknown registry email: ghost@x.com' },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderScreen();
+
+    await fillForm(user);
+    await user.click(screen.getByRole('button', { name: 'Create request' }));
+
+    expect(
+      await screen.findByText('Unknown registry email: ghost@x.com')
+    ).toBeInTheDocument();
+    // No navigation: the create screen is still mounted.
+    expect(screen.queryByText('detail-screen')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create request' })).toBeEnabled();
   });
 
   test('R5: users endpoint failure is surfaced without crashing', async () => {

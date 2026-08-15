@@ -35,6 +35,17 @@ const pendingDetail = {
   evidenceKey: undefined,
 };
 
+const rejectedDetail = {
+  ...completedDetail,
+  status: 'REJECTED',
+  evidenceKey: undefined,
+  approvers: [
+    { email: 'alice@x.com', name: 'Alice', status: 'SIGNED', signedAt: '2026-08-15T09:00:00.000Z' },
+    { email: 'bob@x.com', name: 'Bob', status: 'REJECTED', rejectedAt: '2026-08-15T11:30:00.000Z' },
+    { email: 'dana@x.com', name: 'Dana', status: 'PENDING' },
+  ],
+};
+
 function renderScreen(detail) {
   apiClient.get.mockResolvedValue({ data: detail });
   return render(
@@ -89,6 +100,47 @@ describe('RequestDetailScreen (R3 + R4)', () => {
       });
     });
     expect(global.URL.createObjectURL).toHaveBeenCalled();
+  });
+
+  test('R3: REJECTED approver row renders with its rejection date', async () => {
+    renderScreen(rejectedDetail);
+
+    await screen.findByText('New laptops');
+
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    // Two "Rejected" badges: the global status badge + Bob's approver row.
+    expect(screen.getAllByText('Rejected')).toHaveLength(2);
+    // Rejection date: 2026-08-15T11:30 UTC → "Aug 15, 2026".
+    expect(screen.getAllByText('Aug 15, 2026')).toHaveLength(2); // Alice signed + Bob rejected
+    // PENDING approver shows a dash, not a date.
+    expect(screen.getByText('Dana')).toBeInTheDocument();
+    // No Download PDF for a REJECTED (non-COMPLETED) request.
+    expect(
+      screen.queryByRole('button', { name: /Download PDF/i })
+    ).not.toBeInTheDocument();
+  });
+
+  test('R4: PDF download failure is surfaced and the screen stays usable', async () => {
+    renderScreen(completedDetail);
+
+    const button = await screen.findByRole('button', { name: 'Download PDF' });
+
+    apiClient.get.mockClear();
+    apiClient.get.mockRejectedValueOnce({
+      response: {
+        status: 404,
+        data: { error: 'NotFound', message: 'Evidence not found' },
+      },
+    });
+
+    await userEvent.click(button);
+
+    expect(
+      await screen.findByText('Evidence not found')
+    ).toBeInTheDocument();
+    // Screen stays usable: metadata still rendered and button still clickable.
+    expect(screen.getByText('New laptops')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeEnabled();
   });
 
   test('R4: no Download PDF button when the request is not COMPLETED', async () => {
