@@ -2,7 +2,7 @@ change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
 current_phase: apply
-current_pr: 7
+current_pr: 8
 
 dag:
   proposal: done
@@ -15,9 +15,9 @@ dag:
 
 branch:
   base: main
-  active: feat/approver-flow
-  applied_prs: [0, 1, 2, 3, 4, 5, 6]
-  pending_prs: [7, 8]
+  active: feat/release-docs
+  applied_prs: [0, 1, 2, 3, 4, 5, 6, 7]
+  pending_prs: [8]
 
 notes: |
   PR #0 bootstrap merged. PR #1 user-registry MERGED. PR #2 purchase-request MERGED
@@ -27,26 +27,23 @@ notes: |
   `!completedAt AND #status=pending`, reject first-wins, validatedAt/401, CI). PR #5
   pdf-evidence MERGED (PdfGenerator pdf-lib, S3EvidenceStore behind port, deterministic
   evidenceKey + idempotent guard, binaryMediaTypes fix, download 200/404).
+  PRE-#7 refactor MERGED (5100cf4): per-remote folder convention applied to all 3 MF
+  apps (app/api/components(+ui)/hooks/lib/pages/routes/store, colocated tests).
+  PR #6 requester-panel MERGED (host shell + requester remote: list/create/detail,
+  RHF+zod, Tailwind+shadcn, zustand scoped, English copy; CSS-through-exposed-module
+  CRITICAL fixed).
   Delivery: PR per capability, 1 commit = 1 task, no line budget, git local.
 
-  PR #6 requester-panel MERGED — FIRST FRONTEND PR (micro-frontends). Host shell with
-  Tailwind nav + shared react-router-dom singleton; requester remote owns /requester*:
-  list (newest-first + empty state + error/retry), create (RHF+zod, requester + 3
-  approver selectors from GET /api/users, requester!=approvers, server errors surfaced,
-  navigate to detail), detail (approver status table + Download PDF only when COMPLETED).
-  UI stack: Tailwind v3.4 + shadcn copied per-remote (no runtime dep), RHF+zod at form
-  boundary, zustand scoped to refresh signal only, English UI copy.
-  Fresh review caught + fixed CRITICAL: remote CSS stranded in standalone entry → composed
-  host rendered UNSTYLED; fixed by importing globals.css through exposed App module + static
-  regression + dist-level proof + manual smoke step. Also fixed zod ≤2-decimals dead code,
-  pinned react-router-dom singleton, test gaps, frontend CI. DECISIONS frontend #6.
+  PR #7 approver-flow MERGED — LAST functional PR. Approver remote owns single /approve
+  entry (?request_id&approver_token): gate-driven state machine mapped to HTTP codes
+  (410/403/404/401/409) via lib/flow.js classifier; ApprovalLandingPage, OtpEntryPage,
+  OtpLockedOutPage, ApprovalDecisionPage (approve w/o name, reject w/ confirm),
+  TerminalPage variants; zustand flow store; folder convention + shadcn + English copy;
+  standalone AND composed (host /approve). Fresh review: flow correct (verified every
+  branch vs handlers); fixed CRITICAL focused-test guard extended to ALL frontends
+  (frontend/scripts/no-focused-tests.mjs + pretest hooks, proven with temp .only);
+  pinned 409/410 error-body contract in backend tests (classifier coupling now protected);
+  retry affordance after transient action error; expiresInSeconds refreshed on regenerate.
+  DECISIONS frontend #8. MANUAL-TESTING pending PR #7/#8 sections.
 
-  PRE-#7 refactor MERGED (5100cf4): agreed per-remote folder convention applied to ALL 3 MF
-  apps — app/ (wiring+colocated App tests), api/, components/ (feature) + components/ui/
-  (shadcn, no dedicated tests), hooks/, lib/, pages/ (screens→pages), routes/ (paths.js),
-  store/ (zustand), setupTests in app/. Tests colocated everywhere. Mechanical: 35 files,
-  26 renames + import/config edits, zero logic change (verified by -M rename detection +
-  full suite green; documented as the review gate for this move-only change). DECISIONS
-  frontend #7. PR #7 approver-flow will follow the same structure.
-
-updated_at: 2026-08-15T01:30:00
+updated_at: 2026-08-15T02:00:00
