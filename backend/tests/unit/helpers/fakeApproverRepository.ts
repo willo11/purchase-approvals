@@ -16,6 +16,7 @@ export class FakeApproverRepository implements ApproverRepository {
   findByTokenCalls = 0;
   incrementCalls = 0;
   resetCalls = 0;
+  markValidatedCalls = 0;
   markSignedCalls = 0;
   markRejectedCalls = 0;
   lastSignedCondition = '';
@@ -56,6 +57,12 @@ export class FakeApproverRepository implements ApproverRepository {
     if (!state || state.tokenStatus !== 'ACTIVE') return false;
     state.attempts = 0;
     return true;
+  }
+
+  async markValidated(requestId: string, email: string, timestamp: string): Promise<void> {
+    this.markValidatedCalls += 1;
+    const state = this.approvers.get(`${requestId}#${email}`);
+    if (state) state.validatedAt = timestamp;
   }
 
   async markSigned(

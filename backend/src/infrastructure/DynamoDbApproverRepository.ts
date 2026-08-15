@@ -119,6 +119,17 @@ export class DynamoDbApproverRepository implements ApproverRepository {
     }
   }
 
+  async markValidated(requestId: string, email: string, timestamp: string): Promise<void> {
+    await this.env.documentClient.send(
+      new UpdateCommand({
+        TableName: this.env.tableName,
+        Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
+        UpdateExpression: 'SET validatedAt = :ts',
+        ExpressionAttributeValues: { ':ts': timestamp },
+      })
+    );
+  }
+
   async markSigned(
     requestId: string,
     email: string,
@@ -195,6 +206,7 @@ export class DynamoDbApproverRepository implements ApproverRepository {
     };
     if (item.status_signed !== undefined) state.status_signed = String(item.status_signed);
     if (item.status_rejected !== undefined) state.status_rejected = String(item.status_rejected);
+    if (item.validatedAt !== undefined) state.validatedAt = String(item.validatedAt);
     return state;
   }
 }

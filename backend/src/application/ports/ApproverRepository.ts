@@ -12,6 +12,8 @@ export interface ApproverGateState {
   token: string;
   tokenStatus: ApproverTokenStatus;
   attempts: number;
+  /** Set by a SUCCESSFUL OTP validation; required before approve/reject (spec R1/R2, 401). */
+  validatedAt?: string;
   status_signed?: string;
   status_rejected?: string;
 }
@@ -50,6 +52,15 @@ export interface ApproverRepository {
    * rejected → 403).
    */
   resetAttemptsIfActive(requestId: string, email: string): Promise<boolean>;
+
+  /**
+   * Durable proof that this approver validated an OTP (spec R1/R2). Called by
+   * {@link ValidateOtp} on SUCCESS (only the single OTP-consume winner reaches
+   * it), writing a `validatedAt` timestamp on the durable APPR row. The
+   * signature use cases require the marker before approve/reject (401 when
+   * missing); OTP issue/validate/regenerate do NOT require it.
+   */
+  markValidated(requestId: string, email: string, timestamp: string): Promise<void>;
 
   /**
    * Step A of an approve (design-concurrency §3): atomically records a

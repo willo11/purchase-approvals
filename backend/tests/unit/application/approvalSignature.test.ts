@@ -2,7 +2,11 @@ import type { RequestDetail } from '../../../src/domain/PurchaseRequest';
 import { ApproveRequest } from '../../../src/application/ApproveRequest';
 import { RejectRequest } from '../../../src/application/RejectRequest';
 import { ApproverGate } from '../../../src/application/ApproverGate';
-import { AlreadyActedError, TerminalRequestError } from '../../../src/domain/errors';
+import {
+  AlreadyActedError,
+  TerminalRequestError,
+  OtpNotValidatedError,
+} from '../../../src/domain/errors';
 import { FakeRequestRepository } from '../helpers/fakeRequestRepository';
 import { FakeApproverRepository } from '../helpers/fakeApproverRepository';
 import { FakeEvidenceGenerator } from '../helpers/fakeEvidenceGenerator';
@@ -51,6 +55,8 @@ function seedGate(approvers: FakeApproverRepository, signed: string[] = []): voi
       token: a.token,
       tokenStatus: 'ACTIVE',
       attempts: 0,
+      // validated OTP precondition before acting (spec R1/R2)
+      validatedAt: '2026-08-14T08:30:00.000Z',
       status_signed: signed.includes(a.email) ? '2026-08-14T10:00:00.000Z' : undefined,
     });
   }
@@ -123,6 +129,39 @@ describe('approval-signature delta spec R1-R4 (scenarios)', () => {
       'attribute_not_exists(completedAt) AND status = :pending'
     );
     expect(STEP_B_REJECT_COND).toBe('status = :pending AND attribute_not_exists(rejectedAt)');
+  });
+
+  it('R1/R2 — an approver who never validated an OTP is refused before acting (401)', async () => {
+    // Build WITHOUT the validated marker — as if no OTP was ever validated
+    // (the `build()` helper seeds validatedAt by default).
+    const requests = new FakeRequestRepository().seedDetail(detail());
+    const approvers = new FakeApproverRepository();
+    for (const a of APPROVERS) {
+      approvers.seed('req-9', {
+        email: a.email,
+        name: a.name,
+        token: a.token,
+        tokenStatus: 'ACTIVE',
+        attempts: 0,
+        validatedAt: undefined,
+      });
+    }
+    requests.useApproverSource(approvers);
+    const gate = new ApproverGate(requests, approvers);
+    const noOtpApprove = new ApproveRequest(
+      gate,
+      approvers,
+      requests,
+      new FakeEvidenceGenerator()
+    );
+    const noOtpReject = new RejectRequest(gate, approvers, requests);
+
+    await expect(
+      noOtpApprove.execute({ requestId: 'req-9', token: 'token-ana' })
+    ).rejects.toThrow(OtpNotValidatedError);
+    await expect(
+      noOtpReject.execute({ requestId: 'req-9', token: 'token-ana' })
+    ).rejects.toThrow(OtpNotValidatedError);
   });
 
   it('R4 — concurrent approve loses the completion CAS and returns the rival COMPLETED state (no evidence)', async () => {

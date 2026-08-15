@@ -46,6 +46,8 @@ function seedApprovers(approvers: FakeApproverRepository, preSigned: string[] = 
     approvers.seed('req-1', {
       ...row,
       ...gate,
+      // every approver validated an OTP before acting (spec R1/R2 precondition)
+      validatedAt: '2026-08-14T08:30:00.000Z',
       status_signed: preSigned.includes(row.email) ? '2026-08-14T09:00:00.000Z' : undefined,
     });
   }
@@ -92,14 +94,33 @@ describe('ApproveRequest (spec R1, R4 — Step A)', () => {
     ).rejects.toThrow(AlreadyActedError);
   });
 
-  it('an approver who already rejected cannot then approve (R4)', async () => {
-    const { approve, approvers } = build();
-    await approve.execute({ requestId: 'req-1', token: 'token-bob' });
-    // bob already acted (signed) → the gate blocks a second, different action
+  it('an approver who already rejected cannot then approve (R4 directionality)', async () => {
+    const requests = new FakeRequestRepository().seedDetail(approvalDetail());
+    const approvers = new FakeApproverRepository();
+    seedApprovers(approvers);
+    // bob already acted — but as a REJECTION, not a signature
+    approvers.seed('req-1', {
+      email: 'bob@example.com',
+      name: 'Bob',
+      token: 'token-bob',
+      tokenStatus: 'ACTIVE',
+      attempts: 0,
+      validatedAt: '2026-08-14T08:30:00.000Z',
+      status_rejected: '2026-08-14T09:00:00.000Z',
+    });
+    requests.useApproverSource(approvers);
+    const approve = new ApproveRequest(
+      new ApproverGate(requests, approvers),
+      approvers,
+      requests,
+      new FakeEvidenceGenerator()
+    );
+
+    // approve-after-reject is blocked by the gate (already acted → 409)
     await expect(
       approve.execute({ requestId: 'req-1', token: 'token-bob' })
     ).rejects.toThrow(AlreadyActedError);
-    expect(approvers.markSignedCalls).toBe(1); // Step A never committed a second signature
+    expect(approvers.markSignedCalls).toBe(0); // Step A never committed a signature
   });
 });
 

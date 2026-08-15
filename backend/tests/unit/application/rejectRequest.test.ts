@@ -30,9 +30,18 @@ function pendingDetail(): RequestDetail {
 
 function seedApprovers(approvers: FakeApproverRepository): void {
   const gate = { tokenStatus: 'ACTIVE' as const, attempts: 0 };
-  approvers.seed('req-1', { email: 'bob@example.com', name: 'Bob', token: 'token-bob', ...gate });
-  approvers.seed('req-1', { email: 'carol@example.com', name: 'Carol', token: 'token-carol', ...gate });
-  approvers.seed('req-1', { email: 'dave@example.com', name: 'Dave', token: 'token-dave', ...gate });
+  approvers.seed('req-1', {
+    email: 'bob@example.com', name: 'Bob', token: 'token-bob', ...gate,
+    validatedAt: '2026-08-14T08:30:00.000Z',
+  });
+  approvers.seed('req-1', {
+    email: 'carol@example.com', name: 'Carol', token: 'token-carol', ...gate,
+    validatedAt: '2026-08-14T08:30:00.000Z',
+  });
+  approvers.seed('req-1', {
+    email: 'dave@example.com', name: 'Dave', token: 'token-dave', ...gate,
+    validatedAt: '2026-08-14T08:30:00.000Z',
+  });
 }
 
 function build() {

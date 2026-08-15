@@ -1,6 +1,6 @@
 import type { RequestDetail } from '../domain/PurchaseRequest';
 import { ApproverStatus } from '../domain/enums/ApproverStatus';
-import { AlreadyActedError } from '../domain/errors';
+import { AlreadyActedError, OtpNotValidatedError } from '../domain/errors';
 import { ApproverGate } from './ApproverGate';
 import { ApproverRepository } from './ports/ApproverRepository';
 import { RequestRepository } from './ports/RequestRepository';
@@ -41,6 +41,15 @@ export class ApproveRequest {
 
   async execute(command: ApproveRequestCommand): Promise<RequestDetail> {
     const approver = await this.gate.resolve(command.requestId, command.token);
+    // Validated-OTP precondition (spec R1/R2, design-api 401): approve takes no
+    // code, so the approver must have proven OTP possession earlier — the
+    // durable `validatedAt` marker written by a successful ValidateOtp. Not in
+    // the shared gate: OTP issue/validate/regenerate must not require it.
+    if (!approver.validatedAt) {
+      throw new OtpNotValidatedError(
+        'Approver must validate an OTP before approving the request'
+      );
+    }
     const now = new Date().toISOString();
 
     // Step A — per-approver idempotent signature commit. `approver.name` is the

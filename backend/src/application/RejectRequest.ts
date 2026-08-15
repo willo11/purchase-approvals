@@ -1,5 +1,5 @@
 import type { RequestDetail } from '../domain/PurchaseRequest';
-import { AlreadyActedError } from '../domain/errors';
+import { AlreadyActedError, OtpNotValidatedError } from '../domain/errors';
 import { ApproverGate } from './ApproverGate';
 import { ApproverRepository } from './ports/ApproverRepository';
 import { RequestRepository } from './ports/RequestRepository';
@@ -36,6 +36,14 @@ export class RejectRequest {
 
   async execute(command: RejectRequestCommand): Promise<RequestDetail> {
     const approver = await this.gate.resolve(command.requestId, command.token);
+    // Validated-OTP precondition (spec R1/R2, design-api 401) — see
+    // ApproveRequest for the rationale; kept OUT of the shared gate so the OTP
+    // endpoints are not regressed.
+    if (!approver.validatedAt) {
+      throw new OtpNotValidatedError(
+        'Approver must validate an OTP before rejecting the request'
+      );
+    }
     const now = new Date().toISOString();
 
     const committed = await this.approvers.markRejected(command.requestId, approver.email, {

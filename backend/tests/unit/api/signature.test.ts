@@ -20,7 +20,12 @@ function postEvent(
 
 function buildHandlers(approverOverrides: Record<string, unknown> = {}) {
   const requests = new FakeRequestRepository().seedDetail(otpRequestDetail());
-  const approvers = new FakeApproverRepository().seed('req-1', activeGate(approverOverrides));
+  // every approver validated an OTP first (spec R1/R2 precondition); tests may
+  // override to model a non-validated approver (→ 401)
+  const approvers = new FakeApproverRepository().seed(
+    'req-1',
+    activeGate({ validatedAt: '2026-08-14T08:30:00.000Z', ...approverOverrides })
+  );
   requests.useApproverSource(approvers);
   const evidence = new FakeEvidenceGenerator();
   const gate = new ApproverGate(requests, approvers);
@@ -50,6 +55,15 @@ describe('POST .../{token}/approve (#10)', () => {
     const { approve } = buildHandlers({ tokenStatus: 'INVALIDATED_LOCKOUT', attempts: 3 });
     const res = await approve(postEvent('token-bob'));
     expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 401 when the approver never validated an OTP', async () => {
+    // validatedAt missing → the validated-OTP precondition fails (spec R1/R2)
+    const { approve, reject } = buildHandlers({ validatedAt: undefined });
+    const res = await approve(postEvent('token-bob'));
+    expect(res.statusCode).toBe(401);
+    const res2 = await reject(postEvent('token-bob', { confirm: true }));
+    expect(res2.statusCode).toBe(401);
   });
 
   it('returns 409 when the approver already acted', async () => {

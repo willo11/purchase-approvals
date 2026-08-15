@@ -10,7 +10,7 @@ import { DynamoDbApproverRepository } from '../../src/infrastructure/DynamoDbApp
 import { ApproveRequest } from '../../src/application/ApproveRequest';
 import { RejectRequest } from '../../src/application/RejectRequest';
 import { ApproverGate } from '../../src/application/ApproverGate';
-import { AlreadyActedError, TerminalRequestError } from '../../src/domain/errors';
+import { AlreadyActedError, TerminalRequestError, OtpNotValidatedError } from '../../src/domain/errors';
 import { PurchaseRequest } from '../../src/domain/PurchaseRequest';
 import { FakeEvidenceGenerator } from '../unit/helpers/fakeEvidenceGenerator';
 
@@ -138,6 +138,7 @@ async function preSign(id: string, email: string): Promise<void> {
       Item: {
         PK: `REQ#${id}`, SK: `APPR#${email}`, email, name: email.split('@')[0],
         token: `token-${email.split('@')[0]}`, tokenStatus: 'ACTIVE', attempts: 0,
+        validatedAt: '2026-08-14T08:30:00.000Z',
         status_signed: '2026-08-14T09:00:00.000Z',
         signature: { name: email.split('@')[0], timestamp: '2026-08-14T09:00:00.000Z' },
       },
@@ -152,6 +153,17 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
   const evidence = new FakeEvidenceGenerator();
   const approve = new ApproveRequest(gate, approvers, requests, evidence);
   const reject = new RejectRequest(gate, approvers, requests);
+
+  /**
+   * Marks every approver validated — the real flow's OTP validation writes
+   * this marker (ValidateOtp → markValidated) BEFORE any approve/reject
+   * (spec R1/R2).
+   */
+  async function markAllValidated(id: string): Promise<void> {
+    for (const a of APPROVERS) {
+      await approvers.markValidated(id, a.email, '2026-08-14T08:30:00.000Z');
+    }
+  }
 
   beforeAll(async () => {
     await createTable();
@@ -175,6 +187,7 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
   it('Promise.all of two concurrent approves: exactly ONE completedAt, BOTH signatures, evidence once', async () => {
     evidence.calls = 0;
     await requests.create(makeRequest('sig-con-approve'), APPROVERS);
+    await markAllValidated('sig-con-approve');
     await preSign('sig-con-approve', 'dave@example.com'); // 1 already signed
 
     // bob + carol approve CONCURRENTLY (spec R4 scenario)
@@ -201,6 +214,7 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
   it('approve-vs-reject race: exactly one global winner (completed XOR rejected)', async () => {
     evidence.calls = 0;
     await requests.create(makeRequest('sig-con-vs'), APPROVERS);
+    await markAllValidated('sig-con-vs');
     // 2 pre-signed: the 3rd approver racing approve vs reject decides globally
     await preSign('sig-con-vs', 'carol@example.com');
     await preSign('sig-con-vs', 'dave@example.com');
@@ -267,6 +281,7 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
 
   it('same approver repeat: second approve is blocked (already acted → 409)', async () => {
     await requests.create(makeRequest('sig-repeat'), APPROVERS);
+    await markAllValidated('sig-repeat');
     await approve.execute({ requestId: 'sig-repeat', token: 'token-bob' });
 
     await expect(
@@ -284,6 +299,7 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
 
   it('after a rejection every other approver link is terminal (R2)', async () => {
     await requests.create(makeRequest('sig-rejected'), APPROVERS);
+    await markAllValidated('sig-rejected');
     await reject.execute({ requestId: 'sig-rejected', token: 'token-bob' });
 
     await expect(
@@ -292,5 +308,19 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
     await expect(
       approve.execute({ requestId: 'sig-rejected', token: 'token-carol' })
     ).rejects.toBeInstanceOf(TerminalRequestError);
+  });
+
+  it('an approver who never validated an OTP gets 401 before acting (spec R1/R2)', async () => {
+    await requests.create(makeRequest('sig-not-validated'), APPROVERS);
+    // NOTE: no markAllValidated here — the rows have no validatedAt marker
+
+    await expect(
+      approve.execute({ requestId: 'sig-not-validated', token: 'token-bob' })
+    ).rejects.toBeInstanceOf(OtpNotValidatedError);
+
+    const req = await readRequest('sig-not-validated');
+    expect(req?.status).toBe('PENDING'); // nothing was written
+    const rows = await readApproverRows('sig-not-validated');
+    expect(rows.some((r) => r.status_signed)).toBe(false);
   });
 });

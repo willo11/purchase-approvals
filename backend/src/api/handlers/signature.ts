@@ -8,7 +8,7 @@ import {
   TerminalRequestError,
   LockedOutError,
   AlreadyActedError,
-  WrongOtpError,
+  OtpNotValidatedError,
   PurchaseRequestDomainError,
 } from '../../domain/errors';
 import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepository';
@@ -22,13 +22,15 @@ import { StubEvidenceGenerator } from '../../infrastructure/StubEvidenceGenerato
  *   Unknown request / unknown token      → 404
  *   Lockout                              → 403
  *   Already acted (signed/rejected dup)  → 409
+ *   OTP not validated before acting      → 401 (validatedAt marker, spec R1/R2)
  *   Terminal request                     → 410
  *   Any other domain validation          → 400
  *   Anything unexpected                  → 500
  *
- * NOTE (OTP-validated gap): design-api lists 401 "wrong OTP" for approve/reject,
- * but those endpoints take no code and PR #3 consumes the OTP on validate, so
- * no OTP is re-proven here. See apply-progress return-risks.
+ * The 401 branch is LIVE: approve/reject take no code, so they require the
+ * durable `validatedAt` marker written by a successful OTP validation (PR #3
+ * consumes the OTP; ValidateOtp writes the marker). An approver who never
+ * validated an OTP gets 401 here.
  */
 function errorResponse(err: unknown): { status: number; body: Record<string, unknown> } {
   if (err instanceof UnknownRequestError || err instanceof UnknownTokenError) {
@@ -43,13 +45,8 @@ function errorResponse(err: unknown): { status: number; body: Record<string, unk
   if (err instanceof TerminalRequestError) {
     return { status: 410, body: { error: err.name, message: err.message } };
   }
-  if (err instanceof WrongOtpError) {
-    // Defensive: approve/reject take no code today (OTP is consumed on
-    // validate, PR #3); kept so the mapper fully mirrors the design-api table.
-    return {
-      status: 401,
-      body: { error: err.name, message: err.message, attemptsRemaining: err.attemptsRemaining },
-    };
+  if (err instanceof OtpNotValidatedError) {
+    return { status: 401, body: { error: err.name, message: err.message } };
   }
   const name = (err as Error)?.name ?? 'Error';
   const message = (err as Error)?.message ?? 'Unexpected error';
