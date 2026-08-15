@@ -14,6 +14,9 @@
     "test": "jest --coverage",
     "test:unit": "jest --coverage",
     "test:integration": "DYNAMODB_LOCAL=http://localhost:8000 jest --runInBand --coverage=false",
+    "pretest": "node scripts/no-focused-tests.mjs",
+    "pretest:unit": "node scripts/no-focused-tests.mjs",
+    "pretest:integration": "node scripts/no-focused-tests.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:create-table": "node --env-file=.env scripts/create-local-table.mjs"
