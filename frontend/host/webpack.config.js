@@ -39,7 +39,14 @@ module.exports = {
         // The requester/approver remotes render their own <Routes> inside the
         // host's <BrowserRouter>. They MUST resolve the SAME react-router-dom
         // instance, otherwise the router context is lost across the boundary.
-        'react-router-dom': { singleton: true },
+        // requiredVersion pins both sides to the same range so version skew
+        // fails loudly at runtime instead of silently using whichever loads
+        // first (strictVersion:false allows a compatible fallback).
+        'react-router-dom': {
+          singleton: true,
+          requiredVersion: '^6.30.4',
+          strictVersion: false,
+        },
       },
     }),
     new HtmlWebpackPlugin({

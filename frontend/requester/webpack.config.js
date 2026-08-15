@@ -44,7 +44,12 @@ module.exports = {
         'react-dom': { singleton: true },
         // Rendered inside the host's <BrowserRouter>; must resolve to the SAME
         // instance as the host so the router context survives the boundary.
-        'react-router-dom': { singleton: true },
+        // requiredVersion mirrors the host's pin — skew fails loudly.
+        'react-router-dom': {
+          singleton: true,
+          requiredVersion: '^6.30.4',
+          strictVersion: false,
+        },
       },
     }),
     new webpack.DefinePlugin({
