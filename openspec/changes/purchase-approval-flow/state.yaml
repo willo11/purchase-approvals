@@ -1,7 +1,7 @@
 change: purchase-approval-flow
 artifact_store: openspec
 status: in-progress
-current_phase: verify
+current_phase: archive
 current_pr: 8
 
 dag:
@@ -10,8 +10,8 @@ dag:
   design: done
   tasks: done
   apply: done
-  verify: in-progress
-  archive: pending
+  verify: done
+  archive: in-progress
 
 branch:
   base: main
@@ -20,21 +20,18 @@ branch:
   pending_prs: []
 
 notes: |
-  ALL 8 PRs MERGED — backend complete (#0-#5: user-registry, purchase-request,
-  approver-otp, approval-signature, pdf-evidence) + frontend complete (#6 requester-panel,
+  ALL 8 PRs MERGED — backend complete (#0-#5) + frontend complete (#6 requester-panel,
   #7 approver-flow) + folder refactor + release/docs (#8).
-  PR #8 release MERGED: README runbook (consent-signature framing, auth disclaimer,
-  literally-followable quick path), OpenAPI 3.0 (12 endpoints + health, error→HTTP
-  policy), deploy documented-pending (no AWS creds in sandbox — exact commands +
-  placeholders), host MF remote URLs parameterized (REQUESTER_REMOTE_URL /
-  APPROVER_REMOTE_URL), DECISIONS reconciled (#24 backend, #6/#7/#8 frontend),
-  English sweep clean (scripts + docs).
-  Fresh review caught + fixed 3 CRITICALs: /mock-mail URL (real inbox is backend
-  :4000/dev/mock-mail), host hardcoded localhost remotes (now env-driven), quick path
-  missing backend build + db:create-table. OpenAPI 404 on regenerate + rejectedBy removed.
-  Full suite: 348 tests (backend 194 @93.56%, host 3, requester 46 @95.37%, approver
-  105 @98.31%), integration 221 @dynamodb-local, CI green. Deploy pending: run
-  `pnpm -C backend exec sls deploy` from an AWS-profile env + fill README placeholders.
-  NEXT: sdd-verify (final validation against specs) → sdd-archive.
+  VERIFY PASS-WITH-WARNINGS (obs #56): 29/29 spec scenarios with passing covering
+  tests (incl. real concurrency races vs dynamodb-local: single completedAt,
+  approve-vs-reject XOR, one-time OTP consume, atomic lockout); 65/65 tasks; design
+  contract exact (CAS conditions, TTL-on-OTP-only, GSI1, validatedAt/401, evidenceKey
+  idempotency, binaryMediaTypes); OpenAPI parseable + matches handlers; README runbook
+  literally-followable; auth disclaimer present; English sweep clean (348 tests:
+  backend 194 @93.56%, requester 46 @95.37%, approver 105 @98.31%; integration 221).
+  Warning fixed post-verify: design-api RequestDetail shape aligned (evidenceKey, drop
+  excluded). Accepted residuals: deploy documented-pending (no AWS creds in sandbox),
+  validatedAt does not expire, PDF permanent-404 retry deferred (SQS evolution).
+  NEXT: sdd-archive.
 
-updated_at: 2026-08-15T02:40:00
+updated_at: 2026-08-15T03:00:00
