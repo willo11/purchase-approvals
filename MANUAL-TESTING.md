@@ -4,7 +4,7 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #3 — approver-otp (backend API)**. The frontend is NOT yet
+> Current status: **PR #4 — approval-signature (backend API)**. The frontend is NOT yet
 > connected to the backend (that lands in PR #6 requester-panel and PR #7 approver-flow),
 > so manual testing is, for now, 100% backend via `curl`.
 
@@ -194,6 +194,57 @@ curl -s -w "\nHTTP:%{http_code}\n" -X POST \
 
 ---
 
+### PR #4 — approval-signature (approve / reject, the concurrency core)
+
+After validating the OTP (PR #3 flow), the approver can approve or reject. The `validatedAt`
+marker written by a successful validate is REQUIRED — hitting approve/reject without it
+returns **401**. The signature uses the REGISTERED snapshot name + timestamp (never typed).
+
+```bash
+# 1. Approve WITHOUT validating OTP first → 401 (validated-OTP precondition)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/approve \
+  -H "Content-Type: application/json" -d '{}'
+
+# 2. Validate OTP first (correct code from /mock-mail), THEN approve → 201 RequestDetail
+#    NOTE: the approve response returns the CURRENT global state — if another approver
+#    already completed it, you get 201 with status COMPLETED (the CAS loser).
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp/validate \
+  -H "Content-Type: application/json" -d '{"email":"ana@example.com","code":"000000"}'
+
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/approve \
+  -H "Content-Type: application/json" -d '{}'
+
+# 3. Same approver signs again → 409 (already acted)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/approve \
+  -H "Content-Type: application/json" -d '{}'
+
+# 4. Reject requires {confirm:true} → 201 first-reject-wins, global REJECTED
+#    (later rejects from other links → 409 already-acted / 410 terminal)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/reject \
+  -H "Content-Type: application/json" -d '{"confirm":true}'
+
+# 5. On a COMPLETED request, further action → 410 (terminal)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/approvals/ID/token/TOKEN/approve \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+**Expected result**: `401 → 201 validate → 201 approve → 409 → 201 reject → 410`. The 3rd
+signature completes the request: exactly one `completedAt`, `COMPLETED > REJECTED` precedence,
+and the completion-CAS loser returns 201 with the current (already-completed) state — it does
+NOT generate evidence. Same-approver repeat is blocked (Step A CAS), and approve-vs-reject
+can never land in an inconsistent state (`completed XOR rejected`).
+
+> **Concurrency check**: open the same approval link in two tabs and approve on both almost
+> simultaneously — exactly one `completedAt` is set and both requests return the final state.
+
+---
+
 ## Clean Code context (to defend in the interview)
 
 The flow verified by these curls is `HTTP → handler → use case → port → DynamoDB`:
@@ -263,6 +314,29 @@ infrastructure/{DynamoDbApproverRepository, DynamoDbOtpRepository, MockMailRepo}
 - **Mock mail as outbox**: `GET /mock-mail` is the demo inbox; `MockMailRepo` writes a row per
   event. Swapping to SES later = one adapter behind `MailPort`.
 
+The approval-signature flow is the **concurrency core** — the strongest interview material:
+
+```
+api/handlers/signature.ts                → HTTP (approve / reject)
+   ▼ calls
+application/{ApproveRequest, RejectRequest}
+   ▼ gate first (shared): terminal 410 → token 404 → lockout 403 → already-acted 409
+   ▼ then validated-OTP check → 401
+   ▼ Step A per-approver CAS → Step B REQ-level CAS
+infrastructure/DynamoDb{Approver,Request}Repository  (ConditionExpression CAS)
+```
+
+- **The REQUEST item is the single lock**: Step B completion is
+  `attribute_not_exists(completedAt) AND #status = :pending` (symmetric with reject) — exactly
+  one writer completes; the loser re-reads, returns 201 with the completed state, and does NOT
+  generate. `completed XOR rejected` by construction.
+- **Step A per-approver CAS**: `attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)` —
+  the same approver can never sign twice nor sign AND reject.
+- **Signature = registered snapshot name + timestamp** (R1): no typed name in the payload.
+- **Validated-OTP precondition → 401**: approve/reject require the `validatedAt` marker that a
+  successful validate wrote on the approver row (the demo's proof of OTP possession).
+- **ConsistentRead on the completion trigger** (no stuck-PENDING when 2 approvers sign concurrently).
+
 ## Checklist
 
 - [ ] `backend/.env` created from `.env.example`
@@ -271,3 +345,4 @@ infrastructure/{DynamoDbApproverRepository, DynamoDbOtpRepository, MockMailRepo}
 - [ ] The 5 PR #1 curls return `201 → 409 → 400 → 400 → 200`
 - [ ] The PR #2 curls return `201 → 404 → 400 → 200 → 200 → 404`
 - [ ] The PR #3 flows return `201 issue → 201 validate → 401 (wrong) → 403 (after 3) → regenerate`
+- [ ] The PR #4 flows return `401 (no OTP) → 201 approve → 409 (repeat) → 201 reject → 410 (terminal)`
