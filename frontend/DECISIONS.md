@@ -57,3 +57,19 @@
   - **Decision**: share **react, react-dom, react-router-dom as singletons** in both host and requester webpack configs. `react-router-dom` MUST be shared so the requester's `<Routes>` render inside the host's `<BrowserRouter>` context (a second bundled copy would lose the router context). zod/zustand/axios/Radix are NOT shared — each remote bundles its own; sharing them would couple the remotes' versions for no runtime benefit (the host never imports them).
   - **Interview line**: "The router instance must be a singleton across the boundary — that's the one sharing decision that's load-bearing; everything else (zod, zustand, axios) is per-remote to avoid version coupling."
 
+## 7. Folder architecture per remote (same convention for host, requester, approver)
+- **Tradeoff**: every micro-front-end was organizing `src/` differently (host flat, requester `screens/`, approver bare), so finding a file and knowing where new code goes required per-app tribal knowledge.
+- **Decision**: **one convention, applied identically to every remote**, and only the folders an app actually uses exist:
+  - `app/` — wiring: `index.js`, `bootstrap.js`, `App.jsx` (router), `globals.css`, `setupTests.js`, `App.*` tests.
+  - `api/` — service layer (`client.js`, `<domain>.js`, `mappers.js`), tests colocated.
+  - `components/` — FEATURE (domain-aware) components like `StatusBadge`; tests colocated.
+  - `components/ui/` — shadcn design-system primitives (button, input, card, table, select, badge); agnostic, NO dedicated tests (covered via feature tests).
+  - `hooks/` — custom hooks, tests colocated (populated from PR #7 for the approver).
+  - `lib/` — pure utils (`cn`, formatters), tests colocated.
+  - `pages/` — route-level views (`*Page.jsx`); replaces the old `screens/` naming; tests colocated.
+  - `routes/` — path constants + link builders (`paths.js`), tests colocated if logic.
+  - `store/` — zustand stores (scoped UI state), tests colocated.
+- **Why**: consistent mental model across remotes; tests ALWAYS live next to the file they test (nothing loose at `src/` root); the `components/` vs `components/ui/` split keeps the feature layer clearly separated from the agnostic design system so the two never blur.
+- **Costs/risks**: a folder-structure PR is pure MOVES + import-path/config updates — reviewer signal is in the renames (git `-M` stat), not in rewritten logic; webpack Module Federation wiring (entry + exposes) and jest `collectCoverageFrom`/`setupFilesAfterEnv` paths had to be updated in lockstep so builds, coverage thresholds, and the composed remote graph keep working.
+- **Interview line**: "I standardized the folder layout per remote — app wiring, api, feature components vs agnostic ui primitives, hooks, lib, pages, routes, store — with colocated tests everywhere, so a new remote (the approver) follows the exact same map its sibling already proves."
+
