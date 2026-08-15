@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
-import Landing from './Landing';
+import Landing from '../pages/LandingPage';
 
 const RequesterApp = lazy(() => import('requester/App'));
 const ApproverApp = lazy(() => import('approver/App'));
