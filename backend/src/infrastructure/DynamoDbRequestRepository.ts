@@ -144,10 +144,19 @@ export class DynamoDbRequestRepository implements RequestRepository {
           Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
           // `status` is a reserved DynamoDB keyword → #status placeholder.
           UpdateExpression: 'SET completedAt = :now, #status = :completed, gsi1sk = :now',
-          // Step B completion CAS (design-concurrency §3): only ONE writer can pass.
-          ConditionExpression: 'attribute_not_exists(completedAt)',
+          // Step B completion CAS (design-concurrency §3): only ONE writer can
+          // pass. Symmetric with the reject CAS: `#status = :pending` makes the
+          // completion lose to a concurrent reject that already set REJECTED
+          // (cross-direction single winner — a REJECTED request can never be
+          // flipped back to COMPLETED, so `completedAt`/`rejectedAt` never
+          // coexist).
+          ConditionExpression: 'attribute_not_exists(completedAt) AND #status = :pending',
           ExpressionAttributeNames: { '#status': 'status' },
-          ExpressionAttributeValues: { ':now': completedAt, ':completed': 'COMPLETED' },
+          ExpressionAttributeValues: {
+            ':now': completedAt,
+            ':completed': 'COMPLETED',
+            ':pending': 'PENDING',
+          },
         })
       );
       return true;

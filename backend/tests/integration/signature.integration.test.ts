@@ -237,6 +237,34 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
     expect(typeof req?.completedAt).toBe('string'); // one timestamp, not an array
   });
 
+  it('repo-level cross-direction race: completeIfAbsent vs rejectIfPending — exactly ONE winner, never both flags', async () => {
+    // The regression this probes (fresh-review FIX 1): with only
+    // `attribute_not_exists(completedAt)`, the completion CAS could still pass
+    // AFTER a reject set REJECTED, flipping the request back to COMPLETED with
+    // BOTH completedAt and rejectedAt present. With the symmetric
+    // `#status = :pending` guard, exactly one of the two conditional writes can
+    // pass per request, every time.
+    for (let i = 0; i < 10; i += 1) {
+      const id = `sig-cross-${i}`;
+      await requests.create(makeRequest(id), APPROVERS);
+
+      const outcome = await Promise.all([
+        requests.completeIfAbsent(id, '2026-08-14T12:00:00.000Z'),
+        requests.rejectIfPending(id, 'bob@example.com', '2026-08-14T12:00:01.000Z'),
+      ]);
+
+      // exactly ONE conditional write won the single REQ lock
+      expect(outcome.filter(Boolean).length).toBe(1);
+
+      const req = await readRequest(id);
+      const hasCompleted = req?.completedAt !== undefined;
+      const hasRejected = req?.rejectedAt !== undefined;
+      // completed XOR rejected — both flags NEVER coexist, and one ALWAYS lands
+      expect(hasCompleted ? !hasRejected : hasRejected).toBe(true);
+      expect(req?.status).toBe(hasCompleted ? 'COMPLETED' : 'REJECTED');
+    }
+  });
+
   it('same approver repeat: second approve is blocked (already acted → 409)', async () => {
     await requests.create(makeRequest('sig-repeat'), APPROVERS);
     await approve.execute({ requestId: 'sig-repeat', token: 'token-bob' });

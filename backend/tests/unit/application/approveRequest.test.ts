@@ -8,7 +8,7 @@ import { FakeEvidenceGenerator } from '../helpers/fakeEvidenceGenerator';
 
 const SIGNED_COND =
   'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)';
-const COMPLETION_COND = 'attribute_not_exists(completedAt)';
+const COMPLETION_COND = 'attribute_not_exists(completedAt) AND status = :pending';
 
 /**
  * Seeds a PENDING request owned by ana whose approvers match bob/carol/dave.
@@ -153,7 +153,7 @@ describe('ApproveRequest completion (spec R3/R4 — Step B)', () => {
     expect(evidence.calls).toBe(0);
   });
 
-  it('when the completion CAS loses, the loser does NOT generate evidence and returns state (R3/R4)', async () => {
+  it('when the completion CAS loses, the loser does NOT generate evidence and returns the rival COMPLETED state (R3/R4)', async () => {
     const requests = new FakeRequestRepository().seedDetail(approvalDetail(['carol@example.com', 'dave@example.com']));
     requests.simulateAlreadyCompleted = true; // a concurrent writer already completed it
     const approvers = new FakeApproverRepository();
@@ -171,6 +171,8 @@ describe('ApproveRequest completion (spec R3/R4 — Step B)', () => {
 
     expect(requests.completeCalls).toBe(1);
     expect(evidence.calls).toBe(0); // LOSSER MUST NOT generate (spec R4)
-    expect(result.status).toBe('PENDING');
+    // the loser returns the RIVAL's committed state — a COMPLETED request
+    // (real contract: re-read after ConditionalCheckFailed sees completedAt)
+    expect(result.status).toBe('COMPLETED');
   });
 });

@@ -10,7 +10,7 @@ import {
 import type { FakeApproverRepository } from './fakeApproverRepository';
 
 /** Exact Step B completion CAS condition emitted to the fake (design-concurrency §3). */
-const COMPLETION_CONDITION = 'attribute_not_exists(completedAt)';
+const COMPLETION_CONDITION = 'attribute_not_exists(completedAt) AND status = :pending';
 /** Exact Step B reject CAS condition emitted to the fake (design-concurrency §4). */
 const REJECT_CONDITION = 'status = :pending AND attribute_not_exists(rejectedAt)';
 
@@ -35,6 +35,12 @@ export class FakeRequestRepository implements RequestRepository {
   lastRejectCondition = '';
   /** When true, `completeIfAbsent` reports a concurrent writer already completed. */
   simulateAlreadyCompleted = false;
+  /**
+   * When a rival writer completed the request, `get()` reflects the rival's
+   * durable state (status COMPLETED) AFTER the CAS attempt — the loser returns
+   * the real contract (a completed request), not a stale PENDING view.
+   */
+  private rivalCompleted = false;
   /** Mirrors real DDB: the approver rows are the source of truth for status. */
   private approverSource?: FakeApproverRepository;
 
@@ -84,6 +90,11 @@ export class FakeRequestRepository implements RequestRepository {
     this.getCalls += 1;
     const detail = this.details.find((d) => d.id === id);
     if (!detail) return undefined;
+    if (this.rivalCompleted) {
+      // Mirror the real adapter after a lost completion CAS: the rival writer's
+      // durable REQ row shows COMPLETED, so the loser returns that state.
+      return { ...detail, status: 'COMPLETED' as const };
+    }
     if (!this.approverSource) return detail;
     // Mirror the real adapter: re-derive each approver's displayed status from
     // the durable APPR row (the source of truth for status_signed/rejected).
@@ -106,7 +117,14 @@ export class FakeRequestRepository implements RequestRepository {
     this.completeCalls += 1;
     this.lastCompleteCondition = COMPLETION_CONDITION;
     const detail = this.details.find((d) => d.id === id);
-    if (!detail || detail.status === 'COMPLETED' || this.simulateAlreadyCompleted) {
+    if (this.simulateAlreadyCompleted) {
+      // A rival writer CAS'd COMPLETED first: this write loses AND the durable
+      // state the loser reads back is the rival's COMPLETED one (mirrors real
+      // DynamoDB where the rival's update is already committed).
+      this.rivalCompleted = true;
+      return false;
+    }
+    if (!detail || detail.status === 'COMPLETED') {
       return false;
     }
     this.setStatus(id, 'COMPLETED', completedAt);

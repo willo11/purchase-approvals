@@ -15,7 +15,7 @@ import { FakeEvidenceGenerator } from '../helpers/fakeEvidenceGenerator';
 
 const STEP_A_COND =
   'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)';
-const STEP_B_COMPLETE_COND = 'attribute_not_exists(completedAt)';
+const STEP_B_COMPLETE_COND = 'attribute_not_exists(completedAt) AND status = :pending';
 const STEP_B_REJECT_COND = 'status = :pending AND attribute_not_exists(rejectedAt)';
 
 const APPROVERS = [
@@ -117,17 +117,22 @@ describe('approval-signature delta spec R1-R4 (scenarios)', () => {
     expect(STEP_A_COND).toBe(
       'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)'
     );
-    expect(STEP_B_COMPLETE_COND).toBe('attribute_not_exists(completedAt)');
+    // completion is symmetric with reject: `status = :pending` keeps the
+    // REQ-level single lock valid across directions (fresh-review FIX 1)
+    expect(STEP_B_COMPLETE_COND).toBe(
+      'attribute_not_exists(completedAt) AND status = :pending'
+    );
     expect(STEP_B_REJECT_COND).toBe('status = :pending AND attribute_not_exists(rejectedAt)');
   });
 
-  it('R4 — concurrent approve loses the completion CAS and returns current state (no evidence)', async () => {
+  it('R4 — concurrent approve loses the completion CAS and returns the rival COMPLETED state (no evidence)', async () => {
     const { approve, requests, evidence } = build(['ana@example.com', 'bob@example.com']);
     requests.simulateAlreadyCompleted = true; // rival writer completed first
     const result = await approve.execute({ requestId: 'req-9', token: 'token-carol' });
 
     expect(requests.completeCalls).toBe(1);
     expect(evidence.calls).toBe(0);
-    expect(result.status).toBe('PENDING');
+    // loser re-reads the rival's committed state — COMPLETED, not stale PENDING
+    expect(result.status).toBe('COMPLETED');
   });
 });
