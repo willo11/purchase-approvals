@@ -20,7 +20,7 @@ describe('OtpInput — 6-digit numeric input (R2)', () => {
     render(<ControlledOtpInput />);
     const input = screen.getByLabelText('6-digit code');
 
-    await user.type(input, '12ab34c5');
+    await user.type(input, '12ab34c56');
 
     // Only the digits survive, in order, capped at 6.
     expect(input).toHaveValue('123456');
