@@ -4,6 +4,7 @@ import {
   LockedOutError,
   UnknownTokenError,
   UnknownRequestError,
+  AlreadyActedError,
 } from '../../../src/domain/errors';
 import { FakeRequestRepository } from '../helpers/fakeRequestRepository';
 import { FakeApproverRepository } from '../helpers/fakeApproverRepository';
@@ -74,5 +75,41 @@ describe('ApproverGate precedence (spec R7, design-concurrency §2)', () => {
     const approver = await gate.resolve('req-1', 'token-bob');
     expect(approver.email).toBe('bob@example.com');
     expect(approver.tokenStatus).toBe('ACTIVE');
+  });
+
+  it('4th check: an approver who already signed is rejected with already-acted (409)', async () => {
+    const requests = new FakeRequestRepository();
+    requests.seedDetail(otpRequestDetail());
+    const approvers = new FakeApproverRepository().seed(
+      'req-1',
+      activeGate({ status_signed: '2026-08-14T09:00:00.000Z' })
+    );
+    const gate = new ApproverGate(requests, approvers);
+
+    await expect(gate.resolve('req-1', 'token-bob')).rejects.toThrow(AlreadyActedError);
+  });
+
+  it('4th check: an approver who already rejected is rejected with already-acted (409)', async () => {
+    const requests = new FakeRequestRepository();
+    requests.seedDetail(otpRequestDetail());
+    const approvers = new FakeApproverRepository().seed(
+      'req-1',
+      activeGate({ status_rejected: '2026-08-14T09:00:00.000Z' })
+    );
+    const gate = new ApproverGate(requests, approvers);
+
+    await expect(gate.resolve('req-1', 'token-bob')).rejects.toThrow(AlreadyActedError);
+  });
+
+  it('4th check is checked AFTER terminal global state (terminal dominates)', async () => {
+    const requests = new FakeRequestRepository();
+    requests.seedDetail(otpRequestDetail({ status: 'REJECTED' }));
+    const approvers = new FakeApproverRepository().seed(
+      'req-1',
+      activeGate({ status_signed: '2026-08-14T09:00:00.000Z' })
+    );
+    const gate = new ApproverGate(requests, approvers);
+
+    await expect(gate.resolve('req-1', 'token-bob')).rejects.toThrow(TerminalRequestError);
   });
 });
