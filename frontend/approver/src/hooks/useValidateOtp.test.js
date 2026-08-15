@@ -61,11 +61,13 @@ describe('useValidateOtp — OTP entry (R2, task 7.2)', () => {
     expect(useApprovalFlowStore.getState().terminalVariant).toBe(TERMINAL_VARIANTS.LOCKED_OUT);
   });
 
-  test('410 ExpiredOtpError → expired state, regenerate restarts entry (R2)', async () => {
+  test('410 ExpiredOtpError → expired state, regenerate restarts entry with a FRESH window (R2)', async () => {
     apiClient.post.mockRejectedValueOnce({
       response: { status: 410, data: { error: 'ExpiredOtpError', message: 'The OTP is missing or expired' } },
     });
-    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 180 } });
+    // Regeneration returns a DIFFERENT TTL than the original 180s — the store
+    // must pick it up so the countdown reflects the new window.
+    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 300 } });
 
     const { result } = renderHook(() => useValidateOtp());
     await act(async () => result.current.submit('123456'));
@@ -73,7 +75,8 @@ describe('useValidateOtp — OTP entry (R2, task 7.2)', () => {
     expect(useApprovalFlowStore.getState().phase).toBe(FLOW_PHASES.OTP);
 
     const seconds = await act(async () => result.current.regenerate());
-    expect(seconds).toBe(180);
+    expect(seconds).toBe(300);
+    expect(useApprovalFlowStore.getState().expiresInSeconds).toBe(300);
     expect(result.current.expired).toBe(false);
     expect(apiClient.post).toHaveBeenCalledWith('/api/approvals/r1/token/t1/otp/regenerate');
   });

@@ -164,12 +164,13 @@ describe('approver flow — R1–R4 acceptance scenarios', () => {
     expect(screen.queryByText('Enter your code')).not.toBeInTheDocument();
   });
 
-  test('R2: expired OTP → generate new OTP restarts entry', async () => {
+  test('R2: expired OTP → generate new OTP restarts entry with a fresh window', async () => {
     apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 180 } }); // issue
     apiClient.post.mockRejectedValueOnce({
       response: { status: 410, data: { error: 'ExpiredOtpError', message: 'The OTP is missing or expired' } },
     });
-    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 180 } }); // regenerate #9
+    // Regeneration returns a different TTL — the entry must show the new one.
+    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 300 } }); // regenerate #9
 
     const user = userEvent.setup();
     renderApp(VALID_LINK);
@@ -182,6 +183,8 @@ describe('approver flow — R1–R4 acceptance scenarios', () => {
 
     expect(await screen.findByText('A new code has been sent.')).toBeInTheDocument();
     expect(screen.getByText('Enter your code')).toBeInTheDocument();
+    // FIX 4: the countdown reflects the REGENERATED TTL (300s → 5 minutes).
+    expect(screen.getByText(/It expires in 5 minutes/)).toBeInTheDocument();
     expect(apiClient.post).toHaveBeenCalledWith('/api/approvals/r1/token/t1/otp/regenerate');
   });
 

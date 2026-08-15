@@ -69,6 +69,9 @@ export const useApprovalFlowStore = create((set) => ({
 
   /** R2: wrong code — the API reports how many attempts remain. */
   setAttemptsRemaining: (attemptsRemaining) => set({ attemptsRemaining }),
+
+  /** R2: a regenerated OTP starts a FRESH window — refresh the countdown. */
+  setExpiresInSeconds: (expiresInSeconds) => set({ expiresInSeconds }),
 }));
 
 /** Test helper: reset the singleton store between tests. */

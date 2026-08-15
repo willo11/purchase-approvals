@@ -20,6 +20,7 @@ export function useValidateOtp() {
   const enterDecision = useApprovalFlowStore((s) => s.enterDecision);
   const enterTerminal = useApprovalFlowStore((s) => s.enterTerminal);
   const setAttemptsRemaining = useApprovalFlowStore((s) => s.setAttemptsRemaining);
+  const setExpiresInSeconds = useApprovalFlowStore((s) => s.setExpiresInSeconds);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -63,6 +64,9 @@ export function useValidateOtp() {
       const result = await regenerateOtp(requestId, approverToken);
       setExpired(false);
       setAttemptsRemaining(null);
+      // The new OTP starts a FRESH window — the store must reflect the API's
+      // TTL so the entry screen shows the updated countdown (R2).
+      setExpiresInSeconds(result.expiresInSeconds);
       return result.expiresInSeconds;
     } catch (err) {
       const view = toErrorView(err);
@@ -76,7 +80,7 @@ export function useValidateOtp() {
     } finally {
       setRegenerating(false);
     }
-  }, [requestId, approverToken, enterTerminal, setAttemptsRemaining]);
+  }, [requestId, approverToken, enterTerminal, setAttemptsRemaining, setExpiresInSeconds]);
 
   return { submitting, error, expired, regenerating, submit, regenerate };
 }

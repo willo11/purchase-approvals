@@ -46,4 +46,12 @@ describe('approval flow store (state machine, task 7.5)', () => {
     useApprovalFlowStore.getState().setAttemptsRemaining(2);
     expect(useApprovalFlowStore.getState().attemptsRemaining).toBe(2);
   });
+
+  test('setExpiresInSeconds refreshes the OTP window after regeneration (R2)', () => {
+    useApprovalFlowStore.getState().enterOtpEntry({ expiresInSeconds: 180 });
+    expect(useApprovalFlowStore.getState().expiresInSeconds).toBe(180);
+    useApprovalFlowStore.getState().setExpiresInSeconds(300);
+    expect(useApprovalFlowStore.getState().expiresInSeconds).toBe(300);
+    expect(useApprovalFlowStore.getState().phase).toBe(FLOW_PHASES.OTP);
+  });
 });

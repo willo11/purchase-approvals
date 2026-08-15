@@ -81,11 +81,13 @@ describe('OtpEntryPage — R2 scenarios', () => {
     );
   });
 
-  test('expired OTP offers "Generate new OTP"; regeneration restarts entry', async () => {
+  test('expired OTP offers "Generate new OTP"; regeneration restarts entry with a FRESH window', async () => {
     apiClient.post.mockRejectedValueOnce({
       response: { status: 410, data: { error: 'ExpiredOtpError', message: 'The OTP is missing or expired' } },
     });
-    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 180 } });
+    // The API hands back a different TTL (300s) — the entry screen must
+    // reflect it instead of the original 180s (FIX 4).
+    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 300 } });
 
     const user = userEvent.setup();
     render(<OtpEntryPage />);
@@ -101,6 +103,8 @@ describe('OtpEntryPage — R2 scenarios', () => {
 
     expect(await screen.findByText('A new code has been sent.')).toBeInTheDocument();
     expect(screen.getByText('Enter your code')).toBeInTheDocument();
+    // The countdown now reflects the REGENERATED TTL (300s → 5 minutes).
+    expect(screen.getByText(/It expires in 5 minutes/)).toBeInTheDocument();
     expect(apiClient.post).toHaveBeenCalledWith('/api/approvals/r1/token/t1/otp/regenerate');
   });
 });
