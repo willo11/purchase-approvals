@@ -4,9 +4,10 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #5 — pdf-evidence (backend API)**. The frontend is NOT yet
-> connected to the backend (that lands in PR #6 requester-panel and PR #7 approver-flow),
-> so manual testing is, for now, 100% backend via `curl`.
+> Current status: **PR #6 — requester-panel (frontend)**. The frontend is now wired to
+> the backend (requester panel composed by the host shell); PR #7 approver-flow still
+> pending. Backend curls below remain valid; the PR #6 section adds the composed-UI smoke
+> steps.
 
 ---
 
@@ -285,6 +286,49 @@ title/description/amount/date, `Requester: <createdBy.name>`, and exactly 3 sign
 
 ---
 
+### PR #6 — requester panel (frontend)
+
+The host (shell on `:3000`) composes the requester remote (on `:3001`) at `/requester*`
+via webpack Module Federation. With the backend running (`pnpm -C backend run dev`,
+DynamoDB up), run all three dev servers:
+
+```bash
+pnpm run dev:front    # host :3000, requester :3001, approver :3002 (root package.json)
+```
+
+> **COMPOSITION SMOKE CHECK (CRITICAL — fresh-review FIX 1)**: the requester's global
+> stylesheet must ship through the Module Federation EXPOSED module graph (`App.jsx`,
+> which imports `./globals.css`). The remote's `index.js`/CSS NEVER load when the host
+> composes it — only the exposed App graph does. Jest suites stay green even if this
+> regresses (standalone dev on `:3001` loads its own CSS and masks the bug), so ALWAYS
+> verify the COMPOSED app:
+>
+> 1. Open **http://localhost:3000/requester** in the browser.
+> 2. Confirm the UI is STYLED, not raw browser chrome: the page shows the shell nav,
+>    a bordered white **card** with the "Purchase requests" title, a styled **New request**
+>    button, and — once data exists — a bordered **table** with styled status badges.
+>    Raw unstyled buttons/inputs = the CSS graph regression is back.
+> 3. Navigate to `/requester/new` (via the button): the create form card renders with
+>    styled selectors (dropdowns open with rounded list items).
+> 4. Seed data first if the list is empty (PR #2 curls: register users, create a request)
+>    so the table has rows to inspect.
+
+Manual UI walk (needs seeded users + requests from the backend curls):
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | `GET http://localhost:4000/dev/api/users` (register Carol + 3 approvers first) | requester/approver selectors list them |
+| 2 | `/requester/new`: fill title/description/amount, pick requester + 3 distinct approvers, submit | navigates to the detail screen of the created request |
+| 3 | Detail screen | metadata card + 3-approver table (PENDING/SIGNED/REJECTED badges) |
+| 4 | Complete the request via the approver flow (PR #3/#4 curls + `/mock-mail`) | status flips to COMPLETED; **Download PDF** button appears; click downloads `evidence-<id>.pdf` |
+| 5 | Enter `1.234` as amount on `/requester/new`, submit | client-side error "Amount can have at most 2 decimal places" (mirrors backend rule) |
+| 6 | Leave amount empty, submit | "Amount is required" (NOT "greater than 0") |
+
+**Expected result**: composed UI is fully styled (step 1 of the smoke check is the
+critical one — it exercises the exposed-module CSS path that Jest cannot).
+
+---
+
 ## Clean Code context (to defend in the interview)
 
 The flow verified by these curls is `HTTP → handler → use case → port → DynamoDB`:
@@ -388,3 +432,5 @@ infrastructure/DynamoDb{Approver,Request}Repository  (ConditionExpression CAS)
 - [ ] The PR #4 flows return `401 (no OTP) → 201 approve → 409 (repeat) → 201 reject → 410 (terminal)`
 - [ ] The PR #5 flows return `200 (real PDF bytes) → 404 (pending) → 404 (unknown id)` and the downloaded file opens as a PDF
 - [ ] (Deploy-only) `evidence.pdf` downloads as a real binary on a DEPLOYED API — `apiGateway.binaryMediaTypes` is set; offline cannot prove it
+- [ ] PR #6 composition smoke: `http://localhost:3000/requester` renders STYLED (nav, card, table, styled buttons) — exposed-module CSS graph works
+- [ ] PR #6 create form: 3 distinct approvers → detail; amount `1.234` → client error; empty amount → "Amount is required"
