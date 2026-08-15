@@ -29,13 +29,25 @@ const createRequestSchema = z
   .object({
     title: z.string().trim().min(1, 'Title is required'),
     description: z.string().trim().min(1, 'Description is required'),
-    amount: z.coerce
-      .number({ message: 'Amount is required' })
-      .positive('Amount must be greater than 0')
-      .refine(
-        (v) => Number.isInteger(Math.round(v * 100)),
-        'Amount can have at most 2 decimal places'
-      ),
+    amount: z.preprocess(
+      // Empty input must fail as "required", not coerce to 0 and fail as
+      // "positive" — mirrors the backend's number semantics.
+      (v) => {
+        if (v === '' || v === null || v === undefined) return NaN;
+        return typeof v === 'number' ? v : Number(v);
+      },
+      z
+        .number({ message: 'Amount is required' })
+        .positive('Amount must be greater than 0')
+        .refine(
+          // Mirror the backend's exact rule (domain/values/Amount.ts):
+          // Math.abs(value*100 - Math.round(value*100)) < 1e-9. The naive
+          // `Number.isInteger(Math.round(v*100))` ALWAYS passes (Math.round
+          // returns an integer), so 1.234 slipped through client-side.
+          (v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-9,
+          'Amount can have at most 2 decimal places'
+        )
+    ),
     requesterEmail: z.email('Requester is required'),
     approver1: z.email('Approver 1 is required'),
     approver2: z.email('Approver 2 is required'),
