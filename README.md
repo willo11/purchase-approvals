@@ -16,8 +16,9 @@ pnpm run dev
 ```
 
 Open **http://localhost:3000/requester** → create a request → open
-**http://localhost:3000/mock-mail** (the demo inbox) → open an approval link →
-enter the OTP → approve → repeat for 3 approvers → **COMPLETED** + **Download PDF**.
+**http://localhost:4000/dev/mock-mail** (the demo inbox — backend JSON) → open
+an approval link → enter the OTP → approve → repeat for 3 approvers →
+**COMPLETED** + **Download PDF**.
 
 ## System description
 
@@ -88,7 +89,7 @@ enter the OTP → approve → repeat for 3 approvers → **COMPLETED** + **Downl
 |------|--------|-------|--------|
 | 1 | Register 4 employees (1 requester + 3 approvers) | `POST /api/users` or the create form's user selectors | Users in registry |
 | 2 | Create a purchase request (title, amount, requester + 3 distinct approvers) | `http://localhost:3000/requester/new` | Request `PENDING`, 1 unique approval link per approver |
-| 3 | Open the demo inbox | `http://localhost:3000/mock-mail` | Approval links + OTPs "sent" to each approver |
+| 3 | Open the demo inbox (backend JSON, not a frontend page) | `http://localhost:4000/dev/mock-mail` | Approval links + OTPs "sent" to each approver |
 | 4 | Open an approval link (copy `link` from mock-mail, replace host with `http://localhost:3000`) | Browser | OTP entry screen |
 | 5 | Enter the 6-digit code from mock-mail | Browser | Decision screen (request detail) |
 | 6 | **Approve** (records snapshot name + timestamp — no name input) | Browser | Approver shows SIGNED |
@@ -301,8 +302,9 @@ APPROVER_BASE_URL=https://<cloudfront-distribution>.cloudfront.net
 `https://<cloudfront-distribution>.cloudfront.net/requester` — the composed UI
 must be STYLED (the CSS-ships-through-exposed-graph invariant; a raw unstyled
 page means the exposed module graph regressed — see MANUAL-TESTING PR #6 smoke
-check). Then create a request, read `/mock-mail`, open an approval link on the
-CloudFront URL and complete the OTP flow.
+check). Then create a request, read `/mock-mail` on the deployed API
+(`https://<api-id>.execute-api.<region>.amazonaws.com/dev/mock-mail`), open an
+approval link on the CloudFront URL and complete the OTP flow.
 
 ## Assumptions
 

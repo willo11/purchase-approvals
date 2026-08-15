@@ -346,9 +346,10 @@ below exercises the real gate (410/403/404/409) through the browser.
 
 1. With the backend + all three frontends running (`pnpm run dev`), create a
    request (PR #2 curls or `/requester/new`) so mock-mail has approval links.
-2. Open **http://localhost:3000/mock-mail** — the demo inbox rendered by the
-   host shell. Copy the `link` of one APPROVAL_LINK mail; replace the host part
-   with `http://localhost:3000` (or ensure `APPROVER_BASE_URL` already set it).
+2. Open **http://localhost:4000/dev/mock-mail** — the demo inbox (backend JSON,
+   not a frontend page). Copy the `link` of one APPROVAL_LINK mail; replace the
+   host part with `http://localhost:3000` (or ensure `APPROVER_BASE_URL` already
+   set it).
 3. Open that URL in the browser. Expected: a **STYLED** approval screen (card +
    OTP input with "Expires in 3 minutes" style copy) — not raw unstyled
    chrome. Raw styling = the exposed-module CSS graph regressed (same invariant
@@ -393,7 +394,7 @@ The complete demo in one pass — register → create → mock-mail → OTP → 
 |---|------|-------|----------|
 | 1 | Register 1 requester + 3 approvers | PR #1 curls or the create form's user selectors | 201 each / users listed |
 | 2 | Create a request (3 distinct approvers) | `/requester/new` or PR #2 curl | 201 `PENDING`; detail shows 3 PENDING rows |
-| 3 | Open the inbox | `http://localhost:3000/mock-mail` | APPROVAL_LINK + OTP mails, newest first |
+| 3 | Open the inbox (backend JSON) | `http://localhost:4000/dev/mock-mail` | APPROVAL_LINK + OTP mails, newest first |
 | 4 | Approver A: open link (frontend origin) → OTP → approve | Browser | SIGNED row in detail |
 | 5 | Approver B: same flow | Browser | 2 SIGNED / 1 PENDING |
 | 6 | Approver C: same flow — the 3rd approval completes | Browser | status **COMPLETED** |
