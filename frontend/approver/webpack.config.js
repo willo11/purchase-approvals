@@ -3,7 +3,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { ModuleFederationPlugin } = require('webpack').container;
 
 module.exports = {
-  entry: './src/index.js',
+  entry: './src/app/index.js',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].[contenthash:8].js',
@@ -27,7 +27,7 @@ module.exports = {
       name: 'approver',
       filename: 'remoteEntry.js',
       exposes: {
-        './App': './src/App',
+        './App': './src/app/App',
       },
       shared: {
         react: { singleton: true },
