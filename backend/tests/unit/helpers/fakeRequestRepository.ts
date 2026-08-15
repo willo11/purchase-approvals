@@ -13,6 +13,8 @@ import type { FakeApproverRepository } from './fakeApproverRepository';
 const COMPLETION_CONDITION = 'attribute_not_exists(completedAt) AND status = :pending';
 /** Exact Step B reject CAS condition emitted to the fake (design-concurrency §4). */
 const REJECT_CONDITION = 'status = :pending AND attribute_not_exists(rejectedAt)';
+/** Exact evidence idempotency condition emitted to the fake (design-concurrency §5). */
+const EVIDENCE_CONDITION = 'attribute_not_exists(evidenceKey)';
 
 /**
  * In-memory fake for the {@link RequestRepository}.
@@ -31,8 +33,10 @@ export class FakeRequestRepository implements RequestRepository {
   getCalls = 0;
   completeCalls = 0;
   rejectCalls = 0;
+  evidenceCalls = 0;
   lastCompleteCondition = '';
   lastRejectCondition = '';
+  lastEvidenceCondition = '';
   /** When true, `completeIfAbsent` reports a concurrent writer already completed. */
   simulateAlreadyCompleted = false;
   /**
@@ -141,6 +145,17 @@ export class FakeRequestRepository implements RequestRepository {
     const detail = this.details.find((d) => d.id === id);
     if (!detail || detail.status !== 'PENDING') return false;
     this.setStatus(id, 'REJECTED', rejectedAt);
+    return true;
+  }
+
+  async recordEvidence(id: string, evidenceKey: string): Promise<boolean> {
+    this.evidenceCalls += 1;
+    this.lastEvidenceCondition = EVIDENCE_CONDITION;
+    const detail = this.details.find((d) => d.id === id);
+    if (!detail || detail.evidenceKey) return false; // already recorded — no-op
+    this.details = this.details.map((d) =>
+      d.id === id ? { ...d, evidenceKey } : d
+    );
     return true;
   }
 

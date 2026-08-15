@@ -5,6 +5,7 @@ import { AlreadyActedError } from '../../../src/domain/errors';
 import { FakeRequestRepository } from '../helpers/fakeRequestRepository';
 import { FakeApproverRepository } from '../helpers/fakeApproverRepository';
 import { FakeEvidenceGenerator } from '../helpers/fakeEvidenceGenerator';
+import { FakeEvidenceStore } from '../helpers/fakeEvidenceStore';
 
 const SIGNED_COND =
   'attribute_not_exists(status_signed) AND attribute_not_exists(status_rejected)';
@@ -59,13 +60,15 @@ function build() {
   seedApprovers(approvers);
   requests.useApproverSource(approvers);
   const evidence = new FakeEvidenceGenerator();
+  const evidenceStore = new FakeEvidenceStore();
   const approve = new ApproveRequest(
     new ApproverGate(requests, approvers),
     approvers,
     requests,
-    evidence
+    evidence,
+    evidenceStore
   );
-  return { requests, approvers, evidence, approve };
+  return { requests, approvers, evidence, evidenceStore, approve };
 }
 
 describe('ApproveRequest (spec R1, R4 — Step A)', () => {
@@ -113,7 +116,8 @@ describe('ApproveRequest (spec R1, R4 — Step A)', () => {
       new ApproverGate(requests, approvers),
       approvers,
       requests,
-      new FakeEvidenceGenerator()
+      new FakeEvidenceGenerator(),
+      new FakeEvidenceStore()
     );
 
     // approve-after-reject is blocked by the gate (already acted → 409)
@@ -131,11 +135,13 @@ describe('ApproveRequest completion (spec R3/R4 — Step B)', () => {
     seedApprovers(approvers, ['carol@example.com', 'dave@example.com']);
     requests.useApproverSource(approvers);
     const evidence = new FakeEvidenceGenerator();
+    const evidenceStore = new FakeEvidenceStore();
     const approve = new ApproveRequest(
       new ApproverGate(requests, approvers),
       approvers,
       requests,
-      evidence
+      evidence,
+      evidenceStore
     );
 
     const result = await approve.execute({ requestId: 'req-1', token: 'token-bob' });
@@ -161,11 +167,13 @@ describe('ApproveRequest completion (spec R3/R4 — Step B)', () => {
     seedApprovers(approvers, ['carol@example.com']);
     requests.useApproverSource(approvers);
     const evidence = new FakeEvidenceGenerator();
+    const evidenceStore = new FakeEvidenceStore();
     const approve = new ApproveRequest(
       new ApproverGate(requests, approvers),
       approvers,
       requests,
-      evidence
+      evidence,
+      evidenceStore
     );
 
     await approve.execute({ requestId: 'req-1', token: 'token-dave' });
@@ -181,11 +189,13 @@ describe('ApproveRequest completion (spec R3/R4 — Step B)', () => {
     seedApprovers(approvers, ['carol@example.com', 'dave@example.com']);
     requests.useApproverSource(approvers);
     const evidence = new FakeEvidenceGenerator();
+    const evidenceStore = new FakeEvidenceStore();
     const approve = new ApproveRequest(
       new ApproverGate(requests, approvers),
       approvers,
       requests,
-      evidence
+      evidence,
+      evidenceStore
     );
 
     const result = await approve.execute({ requestId: 'req-1', token: 'token-bob' });

@@ -4,7 +4,7 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #4 — approval-signature (backend API)**. The frontend is NOT yet
+> Current status: **PR #5 — pdf-evidence (backend API)**. The frontend is NOT yet
 > connected to the backend (that lands in PR #6 requester-panel and PR #7 approver-flow),
 > so manual testing is, for now, 100% backend via `curl`.
 
@@ -245,6 +245,46 @@ can never land in an inconsistent state (`completed XOR rejected`).
 
 ---
 
+### PR #5 — pdf-evidence (download the generated PDF)
+
+After the 3rd approval completes a request, the completion CAS winner generates the PDF
+and stores it under the deterministic key `reqs/<id>/evidence.pdf`; `evidenceKey` lands on
+the REQ row. Download it (replace `ID` with the request id from PR #2):
+
+```bash
+# 1. Completed request → 200, Content-Type: application/pdf, REAL binary body.
+#    `-o evidence.pdf` saves the bytes; `file`/`pdfinfo`/a PDF viewer validates it.
+curl -s -D - -o evidence.pdf -H "Accept: application/pdf" \
+  http://localhost:4000/dev/api/purchase-requests/ID/evidence.pdf
+
+# 2. Still-PENDING request → 404 (no PDF generated yet)
+curl -s -w "\nHTTP:%{http_code}\n" \
+  http://localhost:4000/dev/api/purchase-requests/ID/evidence.pdf
+
+# 3. Unknown request id → 404
+curl -s -w "\nHTTP:%{http_code}\n" \
+  http://localhost:4000/dev/api/purchase-requests/does-not-exist/evidence.pdf
+```
+
+**Expected result**: `200 (real PDF bytes) → 404 → 404`. The PDF must contain the request
+title/description/amount/date, `Requester: <createdBy.name>`, and exactly 3 signature rows
+(name + timestamp).
+
+> **DEPLOYED-API note (CRITICAL — offline cannot catch this)**: the binary body works
+> locally AND in every test because `serverless-offline` and the test harness bypass the
+> API Gateway boundary. On a REAL REST API v1 deployment, binary responses are only
+> base64-decoded when the API declares binary media types — `serverless.yml` sets
+> `provider.apiGateway.binaryMediaTypes: ['application/pdf', '*/*']` (fresh-review FIX 1).
+> Validate `curl -D - -o evidence.pdf ...` against a DEPLOYED endpoint and confirm the
+> saved file opens as a PDF (not a base64 text string).
+
+> **Known gap (spec R4, documented in DECISIONS #23)**: if generation fails, the request
+> keeps `COMPLETED` and download stays 404 forever — there is no automatic retry. The
+> documented evolution is an idempotent `POST .../evidence/retry` (re-generate when
+> `COMPLETED && !evidenceKey`) or the SQS consumer; NOT implemented in this PR.
+
+---
+
 ## Clean Code context (to defend in the interview)
 
 The flow verified by these curls is `HTTP → handler → use case → port → DynamoDB`:
@@ -346,3 +386,5 @@ infrastructure/DynamoDb{Approver,Request}Repository  (ConditionExpression CAS)
 - [ ] The PR #2 curls return `201 → 404 → 400 → 200 → 200 → 404`
 - [ ] The PR #3 flows return `201 issue → 201 validate → 401 (wrong) → 403 (after 3) → regenerate`
 - [ ] The PR #4 flows return `401 (no OTP) → 201 approve → 409 (repeat) → 201 reject → 410 (terminal)`
+- [ ] The PR #5 flows return `200 (real PDF bytes) → 404 (pending) → 404 (unknown id)` and the downloaded file opens as a PDF
+- [ ] (Deploy-only) `evidence.pdf` downloads as a real binary on a DEPLOYED API — `apiGateway.binaryMediaTypes` is set; offline cannot prove it

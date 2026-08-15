@@ -3,6 +3,7 @@ import {
   GetCommand,
   QueryCommand,
   TransactWriteCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { DynamoDbRequestRepository } from '../../../src/infrastructure/DynamoDbRequestRepository';
 import { PurchaseRequest } from '../../../src/domain/PurchaseRequest';
@@ -138,8 +139,12 @@ describe('DynamoDbRequestRepository', () => {
     const [getCmd, queryCmd] = client.send.mock.calls.map(([c]) => c);
     expect(getCmd).toBeInstanceOf(GetCommand);
     expect(getCmd.input.Key).toEqual({ PK: 'REQ#req-1', SK: 'REQ#req-1' });
+    // strong consistency on the REQ read: a download/guard right after the 3rd
+    // approval must see the just-committed COMPLETED + evidenceKey (FIX 2)
+    expect(getCmd.input.ConsistentRead).toBe(true);
     expect(queryCmd).toBeInstanceOf(QueryCommand);
     expect(queryCmd.input.KeyConditionExpression).toBe('PK = :pk AND begins_with(SK, :appr)');
+    expect(queryCmd.input.ConsistentRead).toBe(true);
   });
 
   it('get returns undefined when the REQ item is missing', async () => {
@@ -157,5 +162,97 @@ describe('DynamoDbRequestRepository', () => {
     const repo = makeRepo(client);
 
     await expect(repo.list()).resolves.toEqual([]);
+  });
+
+  it('recordEvidence sets evidenceKey with the idempotent condition and returns true', async () => {
+    const client = fakeClient();
+    client.send.mockResolvedValue({});
+    const repo = makeRepo(client);
+
+    const recorded = await repo.recordEvidence('req-1', 'reqs/req-1/evidence.pdf');
+
+    expect(recorded).toBe(true);
+    const [command] = client.send.mock.calls[0];
+    expect(command).toBeInstanceOf(UpdateCommand);
+    expect(command.input.Key).toEqual({ PK: 'REQ#req-1', SK: 'REQ#req-1' });
+    expect(command.input.UpdateExpression).toBe('SET evidenceKey = :key');
+    // evidence idempotency guard (design-concurrency §5) — never double-set
+    expect(command.input.ConditionExpression).toBe('attribute_not_exists(evidenceKey)');
+    expect(command.input.ExpressionAttributeValues).toEqual({
+      ':key': 'reqs/req-1/evidence.pdf',
+    });
+  });
+
+  it('recordEvidence returns false when the key is already set (conditional check failed)', async () => {
+    const client = fakeClient();
+    client.send.mockRejectedValue(
+      Object.assign(new Error('conditional'), { name: 'ConditionalCheckFailedException' })
+    );
+    const repo = makeRepo(client);
+
+    await expect(repo.recordEvidence('req-1', 'reqs/req-1/evidence.pdf')).resolves.toBe(false);
+  });
+
+  it('recordEvidence rethrows unexpected errors', async () => {
+    const client = fakeClient();
+    client.send.mockRejectedValue(new Error('DynamoDB exploded'));
+    const repo = makeRepo(client);
+
+    await expect(repo.recordEvidence('req-1', 'reqs/req-1/evidence.pdf')).rejects.toThrow(
+      'DynamoDB exploded'
+    );
+  });
+
+  it('get maps the persisted evidenceKey onto the detail (absent when never generated)', async () => {
+    const client = fakeClient();
+    client.send
+      .mockResolvedValueOnce({
+        Item: {
+          id: 'req-1',
+          title: 'Laptop',
+          description: 'Work machine',
+          amount: 1200.5,
+          currency: 'USD',
+          status: 'COMPLETED',
+          createdBy: { email: 'ana@example.com', name: 'Ana' },
+          createdAt: '2026-08-14T00:00:00.000Z',
+          evidenceKey: 'reqs/req-1/evidence.pdf',
+        },
+      })
+      .mockResolvedValueOnce({
+        Items: [
+          { email: 'bob@example.com', name: 'Bob', status_signed: '2026-08-14T00:00:01.000Z' },
+          { email: 'carol@example.com', name: 'Carol', status_signed: '2026-08-14T00:00:02.000Z' },
+          { email: 'dave@example.com', name: 'Dave', status_signed: '2026-08-14T00:00:03.000Z' },
+        ],
+      });
+    const repo = makeRepo(client);
+
+    const detail = await repo.get('req-1');
+
+    expect(detail?.evidenceKey).toBe('reqs/req-1/evidence.pdf');
+  });
+
+  it('get leaves evidenceKey undefined when the row has none (PENDING/generation failed)', async () => {
+    const client = fakeClient();
+    client.send
+      .mockResolvedValueOnce({
+        Item: {
+          id: 'req-1',
+          title: 'Laptop',
+          description: 'Work machine',
+          amount: 1200.5,
+          currency: 'USD',
+          status: 'PENDING',
+          createdBy: { email: 'ana@example.com', name: 'Ana' },
+          createdAt: '2026-08-14T00:00:00.000Z',
+        },
+      })
+      .mockResolvedValueOnce({ Items: [] });
+    const repo = makeRepo(client);
+
+    const detail = await repo.get('req-1');
+
+    expect(detail?.evidenceKey).toBeUndefined();
   });
 });

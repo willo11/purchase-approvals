@@ -10,6 +10,7 @@ import {
 import { FakeRequestRepository } from '../helpers/fakeRequestRepository';
 import { FakeApproverRepository } from '../helpers/fakeApproverRepository';
 import { FakeEvidenceGenerator } from '../helpers/fakeEvidenceGenerator';
+import { FakeEvidenceStore } from '../helpers/fakeEvidenceStore';
 
 /**
  * Scenario-level suite for the approval-signature delta spec (R1-R4), driving
@@ -69,7 +70,7 @@ function build(signed: string[] = []) {
   requests.useApproverSource(approvers);
   const evidence = new FakeEvidenceGenerator();
   const gate = new ApproverGate(requests, approvers);
-  const approve = new ApproveRequest(gate, approvers, requests, evidence);
+  const approve = new ApproveRequest(gate, approvers, requests, evidence, new FakeEvidenceStore());
   const reject = new RejectRequest(gate, approvers, requests);
   return { requests, approvers, evidence, approve, reject, gate };
 }
@@ -152,7 +153,8 @@ describe('approval-signature delta spec R1-R4 (scenarios)', () => {
       gate,
       approvers,
       requests,
-      new FakeEvidenceGenerator()
+      new FakeEvidenceGenerator(),
+      new FakeEvidenceStore()
     );
     const noOtpReject = new RejectRequest(gate, approvers, requests);
 

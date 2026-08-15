@@ -53,4 +53,15 @@ export interface RequestRepository {
     rejectorEmail: string,
     rejectedAt: string
   ): Promise<boolean>;
+
+  /**
+   * Records the evidence S3 key on the REQUEST item (design-concurrency §5).
+   * A conditional `attribute_not_exists(evidenceKey)` makes the set IDEMPOTENT:
+   * a replayed/retried completion can never double-record, and the guard read
+   * before generation means the key is only written AFTER a successful
+   * generate → store.put (spec R4 — a failed generation leaves `COMPLETED`
+   * with no evidenceKey, so download stays 404). Returns `true` when THIS call
+   * recorded the key, `false` when it was already set (no-op).
+   */
+  recordEvidence(id: string, evidenceKey: string): Promise<boolean>;
 }

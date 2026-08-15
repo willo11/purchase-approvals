@@ -54,6 +54,9 @@ function throwingRepo(): RequestRepository {
     async rejectIfPending() {
       throw new Error('DynamoDB unreachable');
     },
+    async recordEvidence() {
+      throw new Error('DynamoDB unreachable');
+    },
   };
 }
 

@@ -13,6 +13,7 @@ import { ApproverGate } from '../../src/application/ApproverGate';
 import { AlreadyActedError, TerminalRequestError, OtpNotValidatedError } from '../../src/domain/errors';
 import { PurchaseRequest } from '../../src/domain/PurchaseRequest';
 import { FakeEvidenceGenerator } from '../unit/helpers/fakeEvidenceGenerator';
+import { FakeEvidenceStore } from '../unit/helpers/fakeEvidenceStore';
 
 /**
  * THE concurrency core (task 4.7, design-concurrency §3/§4): real DynamoDB
@@ -151,7 +152,8 @@ maybeDescribe('approval-signature concurrency CAS (integration)', () => {
   const approvers = new DynamoDbApproverRepository({ tableName: TABLE_NAME, documentClient });
   const gate = new ApproverGate(requests, approvers);
   const evidence = new FakeEvidenceGenerator();
-  const approve = new ApproveRequest(gate, approvers, requests, evidence);
+  const evidenceStore = new FakeEvidenceStore();
+  const approve = new ApproveRequest(gate, approvers, requests, evidence, evidenceStore);
   const reject = new RejectRequest(gate, approvers, requests);
 
   /**

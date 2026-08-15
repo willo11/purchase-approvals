@@ -117,6 +117,13 @@ export class DynamoDbRequestRepository implements RequestRepository {
       new GetCommand({
         TableName: this.env.tableName,
         Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
+        // Strongly consistent read (fresh-review FIX 2): the REQ row carries
+        // the completion state AND the evidenceKey, so an eventually-consistent
+        // read could transiently hide a just-committed `COMPLETED`/`evidenceKey`
+        // — a download right after the 3rd approval could 404, and the
+        // pre-generation evidenceKey guard could see stale state. Same liveness
+        // rationale as the ConsistentRead on the approver-set query below.
+        ConsistentRead: true,
       })
     );
     const reqItem = reqResult.Item;
@@ -206,6 +213,27 @@ export class DynamoDbRequestRepository implements RequestRepository {
     }
   }
 
+  async recordEvidence(id: string, evidenceKey: string): Promise<boolean> {
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
+          UpdateExpression: 'SET evidenceKey = :key',
+          // Evidence idempotency guard (design-concurrency §5): the key is set
+          // at most once. A replay that already recorded it is a no-op, so a
+          // redelivered/double execution can never double-set.
+          ConditionExpression: 'attribute_not_exists(evidenceKey)',
+          ExpressionAttributeValues: { ':key': evidenceKey },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
+  }
+
   private toSummary(item: Record<string, unknown>): RequestSummary {
     return {
       id: String(item.id),
@@ -244,6 +272,8 @@ export class DynamoDbRequestRepository implements RequestRepository {
       createdBy: { email: createdBy.email, name: createdBy.name },
       approvers,
       createdAt: String(reqItem.createdAt),
+      // Evidence key present only after a successful generation (spec R2/R4).
+      ...(reqItem.evidenceKey ? { evidenceKey: String(reqItem.evidenceKey) } : {}),
     };
   }
 }
