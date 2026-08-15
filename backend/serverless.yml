@@ -89,6 +89,13 @@ functions:
           path: api/purchase-requests/{id}
           method: get
 
+  evidence-download:
+    handler: dist/api/handlers/evidence.download
+    events:
+      - http:
+          path: api/purchase-requests/{id}/evidence.pdf
+          method: get
+
   mock-mail:
     handler: dist/api/handlers/mockMail.list
     events:
