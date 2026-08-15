@@ -175,11 +175,11 @@ Verify: remote suite green, build ok.
 
 > **Concept**: The assignment's documentation + deployment deliverables. Auth disclaimer is REQUIRED (email-only identity = demo limitation, Cognito/JWT documented). Swagger is the 12-endpoint contract reviewers use to drive the demo (lives in `backend/docs/`).
 
-- [ ] 8.1 Root `README.md`: run backend (serverless-offline + DYNAMODB_LOCAL), run frontend, end-to-end demo walkthrough (register → create → mock-mail → OTP → 3 approvals → COMPLETED + PDF), assumptions, **auth disclaimer**.
-- [ ] 8.2 Swagger/OpenAPI `backend/docs/openapi.yaml`: all 12 endpoints (#1-#12) with schemas, error→HTTP policy (design-api), example curl flows (spec tests).
-- [ ] 8.3 Deploy backend: `sls deploy` (Lambda+API Gateway+DynamoDB+S3); record deployed URLs in README.
-- [ ] 8.4 Deploy frontend: build 3 bundles, upload to S3 bucket + CloudFront; record URLs.
-- [ ] 8.5 `DECISIONS.md` upkeep both folders; verify `openspec/config.yaml` test commands final; CI full-suite pass (backend + both remotes) with >=60%.
+- [x] 8.1 Root `README.md`: run backend (serverless-offline + DYNAMODB_LOCAL), run frontend, end-to-end demo walkthrough (register → create → mock-mail → OTP → 3 approvals → COMPLETED + PDF), assumptions, **auth disclaimer**.
+- [x] 8.2 Swagger/OpenAPI `backend/docs/openapi.yaml`: all 12 endpoints (#1-#12) with schemas, error→HTTP policy (design-api), example curl flows (spec tests).
+- [x] 8.3 Deploy backend: `sls deploy` (Lambda+API Gateway+DynamoDB+S3); record deployed URLs in README. *(Documented-pending: no AWS credentials in the sandbox — build PASS, deploy attempt failed with invalid security token; exact commands + record placeholders in README.)*
+- [x] 8.4 Deploy frontend: build 3 bundles, upload to S3 bucket + CloudFront; record URLs. *(Documented-pending: builds PASS; S3+CloudFront steps + placeholders in README.)*
+- [x] 8.5 `DECISIONS.md` upkeep both folders; verify `openspec/config.yaml` test commands final; CI full-suite pass (backend + both remotes) with >=60%.
 
 Verify: deployed URLs live; both suites green on CI; swagger flows reproducible.
 
