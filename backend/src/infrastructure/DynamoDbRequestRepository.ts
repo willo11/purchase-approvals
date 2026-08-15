@@ -206,6 +206,27 @@ export class DynamoDbRequestRepository implements RequestRepository {
     }
   }
 
+  async recordEvidence(id: string, evidenceKey: string): Promise<boolean> {
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${id}`, SK: `REQ#${id}` },
+          UpdateExpression: 'SET evidenceKey = :key',
+          // Evidence idempotency guard (design-concurrency §5): the key is set
+          // at most once. A replay that already recorded it is a no-op, so a
+          // redelivered/double execution can never double-set.
+          ConditionExpression: 'attribute_not_exists(evidenceKey)',
+          ExpressionAttributeValues: { ':key': evidenceKey },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
+  }
+
   private toSummary(item: Record<string, unknown>): RequestSummary {
     return {
       id: String(item.id),
@@ -244,6 +265,8 @@ export class DynamoDbRequestRepository implements RequestRepository {
       createdBy: { email: createdBy.email, name: createdBy.name },
       approvers,
       createdAt: String(reqItem.createdAt),
+      // Evidence key present only after a successful generation (spec R2/R4).
+      ...(reqItem.evidenceKey ? { evidenceKey: String(reqItem.evidenceKey) } : {}),
     };
   }
 }

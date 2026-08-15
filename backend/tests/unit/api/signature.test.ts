@@ -6,6 +6,7 @@ import { ApproverGate } from '../../../src/application/ApproverGate';
 import { FakeRequestRepository } from '../helpers/fakeRequestRepository';
 import { FakeApproverRepository } from '../helpers/fakeApproverRepository';
 import { FakeEvidenceGenerator } from '../helpers/fakeEvidenceGenerator';
+import { FakeEvidenceStore } from '../helpers/fakeEvidenceStore';
 import { otpRequestDetail, activeGate } from '../helpers/otpFixture';
 
 function postEvent(
@@ -30,7 +31,7 @@ function buildHandlers(approverOverrides: Record<string, unknown> = {}) {
   const evidence = new FakeEvidenceGenerator();
   const gate = new ApproverGate(requests, approvers);
   const approve = buildApprove(
-    new ApproveRequest(gate, approvers, requests, evidence)
+    new ApproveRequest(gate, approvers, requests, evidence, new FakeEvidenceStore())
   );
   const reject = buildReject(new RejectRequest(gate, approvers, requests));
   return { requests, approvers, approve, reject };
@@ -79,7 +80,13 @@ describe('POST .../{token}/approve (#10)', () => {
     const approvers = new FakeApproverRepository().seed('req-1', activeGate());
     const evidence = new FakeEvidenceGenerator();
     const approve = buildApprove(
-      new ApproveRequest(new ApproverGate(requests, approvers), approvers, requests, evidence)
+      new ApproveRequest(
+        new ApproverGate(requests, approvers),
+        approvers,
+        requests,
+        evidence,
+        new FakeEvidenceStore()
+      )
     );
     const res = await approve(postEvent('token-bob'));
     expect(res.statusCode).toBe(410);

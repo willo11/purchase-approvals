@@ -65,6 +65,13 @@ export interface RequestDetail {
   createdBy: { email: string; name: string };
   approvers: ApproverView[];
   createdAt: string;
+  /**
+   * Deterministic S3 evidence key (`reqs/<id>/evidence.pdf`), present ONLY
+   * after a successful generation (spec R2, design-concurrency §5). Absent
+   * while PENDING/REJECTED and after a failed generation (R4) — the download
+   * endpoint 404s until it exists.
+   */
+  evidenceKey?: string;
 }
 
 const REQUIRED_APPROVERS = 3;
