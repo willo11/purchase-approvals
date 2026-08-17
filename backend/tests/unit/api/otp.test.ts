@@ -3,10 +3,12 @@ import {
   buildIssueOtp,
   buildValidateOtp,
   buildRegenerateOtp,
+  buildRecoverApproverOtp,
 } from '../../../src/api/handlers/otp';
 import { IssueOtp } from '../../../src/application/IssueOtp';
 import { ValidateOtp } from '../../../src/application/ValidateOtp';
 import { RegenerateOtp } from '../../../src/application/RegenerateOtp';
+import { RecoverApproverOtp } from '../../../src/application/RecoverApproverOtp';
 import { ApproverGate } from '../../../src/application/ApproverGate';
 import { OtpService } from '../../../src/domain/services/OtpService';
 import { Otp } from '../../../src/domain/values/Otp';
@@ -217,5 +219,71 @@ describe('POST .../otp/regenerate', () => {
     const { regenerate } = buildHandlerSuite({ tokenStatus: 'INVALIDATED_LOCKOUT', attempts: 3 });
     const res = await regenerate(postEvent({ requestId: 'req-1', token: 'token-bob' }));
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('POST .../approvers/:email/recover (requester-initiated recovery)', () => {
+  function recoverEvent(email = 'bob@example.com'): APIGatewayProxyEvent {
+    return {
+      pathParameters: { requestId: 'req-1', email },
+    } as unknown as APIGatewayProxyEvent;
+  }
+
+  function buildRecover(approverOverrides: Record<string, unknown> = {}, detailOverrides: Record<string, unknown> = {}) {
+    const requests = new FakeRequestRepository().seedDetail(otpRequestDetail(detailOverrides));
+    const approvers = new FakeApproverRepository().seed('req-1', activeGate(approverOverrides));
+    const otps = new FakeOtpRepository();
+    const mail = new FakeMailPort();
+    const recover = buildRecoverApproverOtp(
+      new RecoverApproverOtp(requests, approvers, otps, new OtpService(), mail)
+    );
+    return { requests, approvers, otps, mail, recover };
+  }
+
+  it('returns 201 { expiresInSeconds: 180 } for a LOCKED approver and resets attempts', async () => {
+    const { approvers, otps, mail, recover } = buildRecover({
+      tokenStatus: 'INVALIDATED_LOCKOUT',
+      attempts: 3,
+    });
+
+    const res = await recover(recoverEvent());
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(res.body)).toEqual({ expiresInSeconds: 180 });
+
+    // locked approver recovered: ACTIVE + attempts reset; fresh OTP + mail sent
+    expect(approvers.gateState('req-1', 'bob@example.com')!.tokenStatus).toBe('ACTIVE');
+    expect(approvers.gateState('req-1', 'bob@example.com')!.attempts).toBe(0);
+    expect(otps.putCalls).toBe(1);
+    expect(mail.sendCalls).toBe(1);
+  });
+
+  it('returns 409 for a NON-locked (innocent pending) approver — no OTP, no mail', async () => {
+    const { otps, mail, recover } = buildRecover({ tokenStatus: 'ACTIVE', attempts: 1 });
+
+    const res = await recover(recoverEvent());
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error).toBe('ApproverNotLockedError');
+    expect(otps.putCalls).toBe(0);
+    expect(mail.sendCalls).toBe(0);
+  });
+
+  it('returns 404 for an unknown request', async () => {
+    const { recover } = buildRecover();
+    const res = await recover({
+      pathParameters: { requestId: 'missing', email: 'bob@example.com' },
+    } as unknown as APIGatewayProxyEvent);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns 404 when the email is not an approver of the request', async () => {
+    const { recover } = buildRecover();
+    const res = await recover(recoverEvent('nobody@example.com'));
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns 410 when the request is terminal (COMPLETED)', async () => {
+    const { recover } = buildRecover({ tokenStatus: 'INVALIDATED_LOCKOUT', attempts: 3 }, { status: 'COMPLETED' });
+    const res = await recover(recoverEvent());
+    expect(res.statusCode).toBe(410);
   });
 });
