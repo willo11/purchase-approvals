@@ -235,6 +235,21 @@ against the handlers. The interactive source of truth for routes/status codes is
 `openspec/changes/purchase-approval-flow/design-api.md`; the OpenAPI file mirrors it
 as the machine-readable artifact.
 
+**Swagger UI is served by the API itself** (no separate tool, no bundled assets —
+the UI loads from the Swagger UI CDN):
+
+- UI: `http://localhost:4000/dev/docs`
+- Spec (JSON): `http://localhost:4000/dev/docs/openapi.json`
+
+Open the UI and use **"Try it out"** against the local backend. The spec JSON is a
+generated artifact (`backend/docs/openapi.json`, marked `_generatedFrom`); the build
+copies it into `dist/docs/` for the `docs` Lambda. On the deployed API the
+spec's base URL (`servers[0]`) is **derived per request** from the request
+context, so "Try it out" targets the deployed API — never localhost. The same
+routes are available under the API Gateway stage, e.g.
+`https://<api-id>.execute-api.<region>.amazonaws.com/dev/docs` (and
+`/dev/docs/openapi.json` for the spec).
+
 **API testing instructions**: follow **`MANUAL-TESTING.md`** — a step-by-step
 `curl` guide per endpoint plus the full end-to-end UI walkthrough (register →
 create → inbox → OTP → approve/reject → PDF). A quick smoke via curl:
@@ -386,6 +401,13 @@ aws s3 sync frontend/approver/dist s3://purchase-approvals-approver-<stage> --de
 2. Error page → `index.html` with 404 (SPA routing: `/requester/:id` and
    `/approve` deep links must fall back to the host shell).
 3. Record the distribution domain name.
+
+> **CORS (deploy-only gotcha):** the browser calls the API from the CloudFront
+> origin → the API MUST return CORS headers. `serverless.yml` sets `cors: true`
+> on every http event (generates OPTIONS + `Access-Control-Allow-Origin: *`).
+> serverless-offline sends these headers by default, so local dev "just works"
+> even without it — only a real deployment breaks without `cors: true`. Don't
+> remove it.
 
 **Record:** CloudFront URL = `https://<cloudfront-distribution>.cloudfront.net`
 

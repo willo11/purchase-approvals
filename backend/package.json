@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-openapi.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "dev": "serverless offline --useInProcess",
     "dev:all": "pnpm run db:up && pnpm run dev",
