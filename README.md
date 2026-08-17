@@ -243,8 +243,10 @@ the UI loads from the Swagger UI CDN):
 
 Open the UI and use **"Try it out"** against the local backend. The spec JSON is a
 generated artifact (`backend/docs/openapi.json`, marked `_generatedFrom`); the build
-copies it into `dist/docs/` for the `docs` Lambda. After deploying, the same routes
-are available under the API Gateway stage, e.g.
+copies it into `dist/docs/` for the `docs` Lambda. On the deployed API the
+spec's base URL (`servers[0]`) is **derived per request** from the request
+context, so "Try it out" targets the deployed API — never localhost. The same
+routes are available under the API Gateway stage, e.g.
 `https://<api-id>.execute-api.<region>.amazonaws.com/dev/docs` (and
 `/dev/docs/openapi.json` for the spec).
 

@@ -7,6 +7,16 @@ function docsEvent(stage = 'dev'): APIGatewayProxyEvent {
   } as unknown as APIGatewayProxyEvent;
 }
 
+function specEvent(
+  headers: Record<string, string>,
+  stage: string
+): APIGatewayProxyEvent {
+  return {
+    headers,
+    requestContext: { stage },
+  } as unknown as APIGatewayProxyEvent;
+}
+
 describe('GET /docs handler (Swagger UI)', () => {
   it('returns 200 text/html containing SwaggerUIBundle and the spec url under the stage', async () => {
     const response = await handlerDocs(docsEvent('dev'));
@@ -44,5 +54,56 @@ describe('GET /docs/openapi.json handler (OpenAPI spec)', () => {
     };
     expect(spec.openapi).toMatch(/^3\./);
     expect(Object.keys(spec.paths)).toHaveLength(12);
+  });
+
+  it('derives servers[0] from the Host header + stage (offline-style request)', async () => {
+    const response = await handlerSpec(
+      specEvent({ Host: 'localhost:4000' }, 'dev')
+    );
+
+    expect(response.statusCode).toBe(200);
+    const spec = JSON.parse(response.body) as {
+      servers: Array<{ url: string; description?: string }>;
+      paths: Record<string, unknown>;
+    };
+    expect(spec.servers[0]).toEqual({
+      url: 'http://localhost:4000/dev',
+      description: 'This API (derived at request time)',
+    });
+    expect(Object.keys(spec.paths)).toHaveLength(12);
+  });
+
+  it('derives an https base for a deployed request via X-Forwarded-Proto', async () => {
+    const response = await handlerSpec(
+      specEvent(
+        {
+          Host: 'abcdef1234.execute-api.us-east-1.amazonaws.com',
+          'X-Forwarded-Proto': 'https',
+        },
+        'prod'
+      )
+    );
+
+    const spec = JSON.parse(response.body) as {
+      servers: Array<{ url: string }>;
+    };
+    expect(spec.servers[0].url).toBe(
+      'https://abcdef1234.execute-api.us-east-1.amazonaws.com/prod'
+    );
+  });
+
+  it('serves the committed servers verbatim when the context lacks the pieces', async () => {
+    const response = await handlerSpec(
+      {} as unknown as APIGatewayProxyEvent
+    );
+
+    expect(response.statusCode).toBe(200);
+    const spec = JSON.parse(response.body) as {
+      servers: Array<{ url: string; description?: string }>;
+    };
+    expect(spec.servers[0].url).toBe('http://localhost:4000/dev');
+    expect(spec.servers[0].description).toBe(
+      'Local development (serverless-offline)'
+    );
   });
 });

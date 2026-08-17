@@ -83,9 +83,10 @@ The API serves an interactive Swagger UI for the full 12-endpoint contract:
 - UI: `http://localhost:4000/dev/docs`
 - Spec (JSON): `http://localhost:4000/dev/docs/openapi.json`
 
-Open the UI and use "Try it out" against the local backend. The spec source of
-truth is `backend/docs/openapi.yaml`; `backend/docs/openapi.json` is a generated
-artifact served by the API.
+Open the UI and use "Try it out" against the local backend. On the deployed API
+the spec's base URL is derived per request, so "Try it out" targets the deployed
+API automatically. The spec source of truth is `backend/docs/openapi.yaml`;
+`backend/docs/openapi.json` is a generated artifact served by the API.
 
 ---
 

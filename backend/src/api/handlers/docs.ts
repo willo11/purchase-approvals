@@ -102,11 +102,67 @@ export const handlerDocs = async (
   };
 };
 
+/**
+ * Derives the API base URL at request time so Swagger UI's "Try it out" targets
+ * the environment that actually served the request — on the DEPLOYED API the
+ * committed spec's `servers[0]` points at localhost, which would send "Try it
+ * out" calls at the developer's machine instead of API Gateway.
+ *
+ * Sources: the `Host` header (real in both serverless-offline and API Gateway)
+ * plus `requestContext.stage` (real in both). The scheme comes from
+ * `X-Forwarded-Proto` when present (API Gateway behind HTTPS), otherwise a
+ * loopback host is assumed http and anything else https. NOTE: we deliberately
+ * do NOT use `requestContext.domainName`/`requestContext.protocol` for this —
+ * serverless-offline fills them with `offlineContext_domainName` and the HTTP
+ * version string (`HTTP/1.1`), neither of which is a usable host/scheme.
+ * Returns null when the context lacks the pieces, so callers fall back to the
+ * committed `servers`.
+ */
+function deriveApiBase(event: APIGatewayProxyEvent): string | null {
+  const headers = event.headers ?? {};
+  const host = headers['Host'] ?? headers['host'] ?? headers['HOST'];
+  const stage = event.requestContext?.stage;
+  if (!host || !stage || host === 'offlineContext_domainName') {
+    return null;
+  }
+  const forwardedProto =
+    headers['X-Forwarded-Proto'] ?? headers['x-forwarded-proto'];
+  const loopback = host.startsWith('localhost') || host.startsWith('127.0.0.1');
+  const scheme =
+    forwardedProto === 'http' || forwardedProto === 'https'
+      ? forwardedProto
+      : loopback
+        ? 'http'
+        : 'https';
+  return `${scheme}://${host}/${stage}`;
+}
+
 /** GET /docs/openapi.json — the full OpenAPI spec as JSON. */
-export const handlerSpec = async (): Promise<APIGatewayProxyResult> => {
+export const handlerSpec = async (
+  event?: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
+  const raw = readSpec();
+  const base = event === undefined ? null : deriveApiBase(event);
+  if (base === null) {
+    // No derivable context → serve the committed artifact verbatim.
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: raw,
+    };
+  }
+  const spec = JSON.parse(raw) as {
+    servers?: Array<{ url: string; description?: string }>;
+  };
+  if (Array.isArray(spec.servers) && spec.servers.length > 0) {
+    spec.servers[0] = {
+      url: base,
+      description: 'This API (derived at request time)',
+    };
+  }
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: readSpec(),
+    body: JSON.stringify(spec),
   };
 };
