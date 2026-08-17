@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "dev": "serverless offline",
+    "dev": "serverless offline --useInProcess",
     "dev:all": "pnpm run db:up && pnpm run dev",
     "test": "jest --coverage",
     "test:unit": "jest --coverage",
