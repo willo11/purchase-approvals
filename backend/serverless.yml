@@ -117,6 +117,20 @@ functions:
           path: mock-mail
           method: get
 
+  docs:
+    handler: dist/api/handlers/docs.handlerDocs
+    events:
+      - http:
+          path: docs
+          method: get
+
+  docs-spec:
+    handler: dist/api/handlers/docs.handlerSpec
+    events:
+      - http:
+          path: docs/openapi.json
+          method: get
+
   issue-otp:
     handler: dist/api/handlers/otp.issue
     events:
