@@ -311,11 +311,13 @@ curl http://localhost:4000/dev/mock-mail                    # demo inbox (links 
 pnpm -C backend run build
 
 # 2. Deploy — provisions the DynamoDB table, S3 bucket, IAM and all functions.
-#    Runs `predeploy` FIRST: the deploy guard (scripts/guard-no-memory-store.mjs)
-#    FAILS the deploy if EVIDENCE_STORE=memory is still set in backend/.env or
-#    the shell environment — the in-memory store must never reach deployed
-#    Lambdas (PDFs would be lost on cold start, download 404).
-pnpm -C backend run deploy -- --stage dev --region us-east-1
+#    First run the predeploy guard: it FAILS the deploy if EVIDENCE_STORE=memory
+#    is still set in backend/.env or the shell env (the in-memory store must never
+#    reach deployed Lambdas — PDFs would be lost on cold start, download 404).
+#    Then `pnpm exec` (NOT `pnpm run ... -- --stage`, which leaks a literal `--`
+#    into serverless and fails with `command "deploy --" not found`).
+pnpm -C backend run predeploy
+pnpm -C backend exec sls deploy --stage dev --region us-east-1
 ```
 
 **Record after deploy** (from `sls deploy` output → "Service Information"):
