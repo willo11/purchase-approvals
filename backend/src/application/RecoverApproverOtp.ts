@@ -83,6 +83,24 @@ export class RecoverApproverOtp {
       );
     }
 
+    // TRANSIENT WINDOW (non-blocking, acknowledged): `recoverIfLocked` has
+    // already flipped this approver from `INVALIDATED_LOCKOUT` → `ACTIVE`, but
+    // the fresh OTP below is not written yet. In that microscopic window, an
+    // in-flight validation carrying the OLD code could briefly succeed (the
+    // gate no longer sees a lockout and the old `OTP#...` TTL item still holds
+    // the old digest). Scope: this only ever affects the ALREADY-LOCKED approver
+    // — never an innocent pending one — so it does not violate the product rule.
+    // The fresh `putOtp` below immediately replaces the old code.
+
+    // NON-TRANSACTIONAL RECOVERY (non-blocking, acknowledged): this is a
+    // 3-step sequence (CAS → putOtp → mail), not a single transaction. A
+    // failure between the CAS and `putOtp` leaves an ACTIVE approver with no
+    // fresh code → the handler returns 500 and the requester retries (the CAS
+    // now fails the `tokenStatus = :locked` condition, so retry is a no-op that
+    // re-issues nothing until the approver is locked again). Harmless to the
+    // locked-only rule; a transactional path would be a DynamoDB TransactWrite
+    // spanning two items, which is out of scope for this demo build.
+
     // Issue a FRESH OTP so the recovered approver has a new code they're told
     // about (via mail) — consistent with the "the approver is notified" intent.
     const otp = this.otpService.generate();
