@@ -453,8 +453,30 @@ grows (existing data is untouched).
 |----------------|--------|---------------|
 | Rejected demo | `REJECTED` | open any of its approval links → the gate shows the terminal screen (410, nothing to act on) |
 | Completed demo | `COMPLETED` | detail shows COMPLETED; `GET /api/purchase-requests/<id>/evidence.pdf` → **200 real PDF** (`file` → "PDF document") thanks to `EVIDENCE_STORE=memory` |
-| Pending demo (OTP regenerated) | `PENDING` | Ana has **2 OTP mails** for it in mock-mail: only the newest validates; the expired one's link offers "Generate new OTP" |
+| Pending demo (OTP regenerated) | `PENDING` | Ana has **2 OTP mails** in mock-mail — use the LATEST code (only the newest is stored; an older one returns 401). The OTP expires after 180s: once expired, open the link and choose "Generate new OTP" |
 | Pending demo (fresh) | `PENDING` | drive the full happy path yourself: open a link → OTP → approve ×3 → COMPLETED + PDF |
+
+### Offline PDF round-trip check (`test:offline-pdf`)
+
+The local evidence flow has a subtle failure mode: serverless-offline runs each
+Lambda function in its own worker-thread module scope by default, so the
+approval handler puts the PDF into one in-memory store and the download handler
+reads an empty one — downloads 404 even though generation succeeded. `pnpm run
+dev` therefore starts `serverless offline --useInProcess` (all handlers in one
+process, sharing the store), and this check proves it end-to-end:
+
+```bash
+pnpm -C backend run db:up            # dynamodb-local (Docker), if not already up
+pnpm -C backend run db:create-table  # purchase-approvals-dev (idempotent)
+pnpm -C backend run test:offline-pdf # boots ITS OWN offline server on :4000
+```
+
+`verify-local-pdf.mjs` spawns `serverless offline --useInProcess`, waits for
+`:4000` health, drives the full happy path through the API (create → issue OTP
+→ read code from mock-mail → validate → approve ×3 → COMPLETED), downloads
+`/evidence.pdf` and asserts **200 + `application/pdf` + non-empty `%PDF`
+bytes**, prints `PASS`/`FAIL`, then kills the server it started. Needs `:4000`
+free (stop any running `pnpm run dev` first). Exit 0 on success, 1 on failure.
 
 ---
 

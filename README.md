@@ -56,7 +56,7 @@ API** to build four ready-made states to explore:
 |----------------|-------|----------------|
 | **Rejected demo** | `REJECTED` | open any of its approval links → terminal screen (nothing to act on) |
 | **Completed demo** | `COMPLETED` | detail shows COMPLETED + **Download PDF** (real PDF with `EVIDENCE_STORE=memory`) |
-| **Pending demo (OTP regenerated)** | `PENDING` | Ana has 2 OTP mails — only the NEWEST code validates; the expired link offers "Generate new OTP" |
+| **Pending demo (OTP regenerated)** | `PENDING` | Ana has 2 OTP mails — use the LATEST code (only the newest is stored; an older one returns 401). The OTP expires after 180s: once expired, open the link and choose "Generate new OTP" |
 | **Pending demo (fresh)** | `PENDING` | drive the full happy path yourself: OTP → approve ×3 → COMPLETED + PDF |
 
 Every run creates a **new** set of requests — there is no cleanup, the demo

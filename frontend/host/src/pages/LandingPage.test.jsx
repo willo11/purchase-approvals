@@ -28,8 +28,10 @@ describe('LandingPage (demo hub scenarios)', () => {
   test('explains the regenerated OTP scenario (2 mails, latest code, generate new OTP)', () => {
     renderPage();
 
+    // Primary instruction first: use the LATEST code (only the newest is stored).
+    expect(screen.getByText(/Ana has 2 OTP mails — use the LATEST code/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/Ana has 2 OTP mails \(newest valid\): open the link and enter the LATEST code/i)
+      screen.getByText(/only the newest is stored; an older one returns 401/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/"Generate new OTP"/i)).toBeInTheDocument();
   });

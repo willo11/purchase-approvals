@@ -41,8 +41,9 @@ const DEMO_SCENARIOS = [
   {
     scenario: 'Regenerated OTP',
     howTo:
-      'In "Pending demo (OTP regenerated)" Ana has 2 OTP mails (newest valid): open the ' +
-      'link and enter the LATEST code; the expired one offers "Generate new OTP".',
+      'In "Pending demo (OTP regenerated)" Ana has 2 OTP mails — use the LATEST code (only ' +
+      'the newest is stored; an older one returns 401). The OTP expires after 180s: once ' +
+      'expired, open the link and choose "Generate new OTP".',
   },
   {
     scenario: 'Completed + PDF',
