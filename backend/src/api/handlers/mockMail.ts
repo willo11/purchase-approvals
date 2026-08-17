@@ -5,11 +5,12 @@ import type {
 import { MailLog } from '../../application/ports/MailPort';
 import { Email } from '../../domain/values/Email';
 import { makeMockMailRepo } from '../../infrastructure/MockMailRepo';
+import { corsHeaders } from '../cors';
 
 function json(statusCode: number, payload: unknown): APIGatewayProxyResult {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   };
 }

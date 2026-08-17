@@ -15,6 +15,7 @@ import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepos
 import { makeUserRegistry } from '../../infrastructure/DynamoDbUserRegistry';
 import { TokenIssuer } from '../../infrastructure/TokenIssuer';
 import { makeMockMailRepo } from '../../infrastructure/MockMailRepo';
+import { corsHeaders } from '../cors';
 
 /**
  * Error → HTTP mapper following design-api.md policy.
@@ -41,7 +42,7 @@ function errorToHttpStatus(err: unknown): number {
 function json(statusCode: number, payload: unknown): APIGatewayProxyResult {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   };
 }

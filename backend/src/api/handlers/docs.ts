@@ -8,6 +8,7 @@ import type {
 // only the bundle), so a static `import` keeps the spec available at runtime
 // without extra package config or a fs read.
 import openapiJson from '../../../docs/openapi.json';
+import { corsHeaders } from '../cors';
 
 /**
  * Serves the interactive Swagger UI from the serverless API itself.
@@ -93,7 +94,7 @@ export const handlerDocs = async (
 ): Promise<APIGatewayProxyResult> => {
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: { ...corsHeaders, 'Content-Type': 'text/html; charset=utf-8' },
     body: swaggerUiHtml(specUrl(event)),
   };
 };
@@ -143,7 +144,7 @@ export const handlerSpec = async (
     // No derivable context → serve the committed artifact verbatim.
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: raw,
     };
   }
@@ -158,7 +159,7 @@ export const handlerSpec = async (
   }
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify(spec),
   };
 };

@@ -15,6 +15,7 @@ import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepos
 import { makeApproverRepository } from '../../infrastructure/DynamoDbApproverRepository';
 import { PdfGenerator } from '../../infrastructure/PdfGenerator';
 import { makeEvidenceStore } from '../../infrastructure/S3EvidenceStore';
+import { corsHeaders } from '../cors';
 
 /**
  * Error → HTTP mapper for the signature endpoints (#10 approve, #11 reject),
@@ -60,7 +61,7 @@ function errorResponse(err: unknown): { status: number; body: Record<string, unk
 function json(status: number, body: unknown): APIGatewayProxyResult {
   return {
     statusCode: status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
 }
