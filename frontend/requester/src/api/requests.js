@@ -42,3 +42,16 @@ export async function downloadEvidence(id) {
   );
   return data;
 }
+
+/**
+ * POST /api/purchase-requests/{requestId}/approvers/{email}/recover
+ * Requester-initiated recovery of a LOCKED approver's OTP (DECISIONS #25).
+ * → 201 { expiresInSeconds: 180 }; 404 unknown request/approver; 409 approver
+ * not locked; 410 request terminal.
+ */
+export async function recoverApproverOtp(requestId, email) {
+  const { data } = await apiClient.post(
+    `/api/purchase-requests/${requestId}/approvers/${encodeURIComponent(email)}/recover`
+  );
+  return data;
+}

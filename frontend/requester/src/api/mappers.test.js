@@ -68,6 +68,23 @@ describe('mappers (DTO → component shape)', () => {
     expect(pending.actionLabel).toBe('—');
   });
 
+  test('toApproverView threads the locked flag (lockout recovery)', () => {
+    const locked = toApproverView({
+      email: 'a@x.com',
+      name: 'Alice',
+      status: 'PENDING',
+      locked: true,
+    });
+    expect(locked.locked).toBe(true);
+
+    const active = toApproverView({
+      email: 'b@x.com',
+      name: 'Bob',
+      status: 'PENDING',
+    });
+    expect(active.locked).toBe(false);
+  });
+
   test('toDetailView maps approvers and metadata', () => {
     const view = toDetailView({
       id: 'r1',
