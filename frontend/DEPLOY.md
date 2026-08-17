@@ -121,7 +121,15 @@ API_BASE_URL=$API_BASE pnpm -C frontend/requester run build
 aws s3 sync frontend/requester/dist s3://purchase-approvals-requester-dev --delete
 ```
 
-Reachable at: `https://purchase-approvals-requester-dev.s3-website-us-east-1.amazonaws.com`
+Reachable over HTTP at: `http://purchase-approvals-requester-dev.s3-website-us-east-1.amazonaws.com`
+
+> **S3 website endpoint is HTTP-only** — `https://...s3-website...` does not serve TLS
+> (a `curl` returns `000`). For the deployed app to work in a browser, EVERYTHING must
+> be `https` (mixed content is blocked). So the canonical, browser-correct URL for each
+> app comes from a **CloudFront distribution in front of its bucket** — not the raw S3
+> website endpoint. Create a CloudFront distribution per bucket now (origin = the bucket's
+> website endpoint), record the three `https://<cloudfront>.cloudfront.net` domains, and use
+> THOSE for the host build (Phase 5) and the entry point (Phase 6).
 
 ---
 
@@ -132,7 +140,7 @@ API_BASE_URL=$API_BASE pnpm -C frontend/approver run build
 aws s3 sync frontend/approver/dist s3://purchase-approvals-approver-dev --delete
 ```
 
-Reachable at: `https://purchase-approvals-approver-dev.s3-website-us-east-1.amazonaws.com`
+Reachable over HTTP at: `http://purchase-approvals-approver-dev.s3-website-us-east-1.amazonaws.com`
 
 ---
 
@@ -140,11 +148,17 @@ Reachable at: `https://purchase-approvals-approver-dev.s3-website-us-east-1.amaz
 
 ```bash
 API_BASE_URL=$API_BASE \
-REQUESTER_REMOTE_URL="https://purchase-approvals-requester-dev.s3-website-us-east-1.amazonaws.com/remoteEntry.js" \
-APPROVER_REMOTE_URL="https://purchase-approvals-approver-dev.s3-website-us-east-1.amazonaws.com/remoteEntry.js" \
+REQUESTER_REMOTE_URL="https://<req-cloudfront>.cloudfront.net/remoteEntry.js" \
+APPROVER_REMOTE_URL="https://<app-cloudfront>.cloudfront.net/remoteEntry.js" \
   pnpm -C frontend/host run build
 aws s3 sync frontend/host/dist s3://purchase-approvals-host-dev --delete
 ```
+
+> **Use the CloudFront `https` URLs of the remotes here**, NOT the S3 website endpoints
+> (those are `http`-only → mixed content would block the remote scripts when the host is
+> served over `https`). Create the requester/approver CloudFront distributions before this
+> build so the URLs exist. Verify each remote entry loads over https first:
+> `curl -o /dev/null -w "%{http_code}\n" https://<req-cloudfront>.cloudfront.net/remoteEntry.js` → 200.
 
 > **Why the remote URLs in the host build?** `frontend/host/webpack.config.js` reads
 > these at build time and bakes them into the host bundle. If you omit them (or use
