@@ -5,8 +5,10 @@ import axios from 'axios';
  * demo hub + approver console; the remotes keep their own instances).
  *
  * Dev backend runs serverless-offline on :4000 (see backend/serverless.yml).
- * The webpack DefinePlugin injects `process.env.API_BASE_URL` at build time;
- * in Jest the fallback applies because axios is mocked anyway.
+ * The webpack DefinePlugin replaces this `process.env.API_BASE_URL` with its
+ * literal at build time (same as requester/approver), so the emitted bundle
+ * never references `process` at runtime — the browser has no such object.
+ * In Jest the fallback applies because axios is mocked anyway.
  */
 export const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/dev';
 
