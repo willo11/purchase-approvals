@@ -402,6 +402,13 @@ aws s3 sync frontend/approver/dist s3://purchase-approvals-approver-<stage> --de
    `/approve` deep links must fall back to the host shell).
 3. Record the distribution domain name.
 
+> **CORS (deploy-only gotcha):** the browser calls the API from the CloudFront
+> origin → the API MUST return CORS headers. `serverless.yml` sets `cors: true`
+> on every http event (generates OPTIONS + `Access-Control-Allow-Origin: *`).
+> serverless-offline sends these headers by default, so local dev "just works"
+> even without it — only a real deployment breaks without `cors: true`. Don't
+> remove it.
+
 **Record:** CloudFront URL = `https://<cloudfront-distribution>.cloudfront.net`
 
 **APPROVER_BASE_URL (deployed)** — set the backend env var to the CloudFront URL
