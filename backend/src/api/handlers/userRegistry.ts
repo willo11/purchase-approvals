@@ -6,6 +6,7 @@ import { UserDomainError, EmptyNameError, InvalidEmailError } from '../../domain
 import { RegisterUser } from '../../application/RegisterUser';
 import { ListUsers } from '../../application/ListUsers';
 import { makeUserRepository } from '../../infrastructure/DynamoDbUserRepository';
+import { corsHeaders } from '../cors';
 
 /**
  * Error → HTTP mapper following design-api.md policy.
@@ -31,7 +32,7 @@ function errorToHttpStatus(err: unknown): number {
 function json(statusCode: number, payload: unknown): APIGatewayProxyResult {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   };
 }

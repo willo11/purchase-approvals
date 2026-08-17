@@ -3,6 +3,7 @@ import type {
   APIGatewayProxyResult,
   Context,
 } from 'aws-lambda';
+import { corsHeaders } from './cors';
 
 /**
  * Liveness probe for the bootstrap stack.
@@ -15,7 +16,7 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: 'ok' }),
   };
 };

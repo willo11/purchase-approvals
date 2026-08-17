@@ -4,6 +4,7 @@ import type { RequestRepository } from '../../application/ports/RequestRepositor
 import type { EvidenceStorePort } from '../../application/ports/EvidenceStorePort';
 import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepository';
 import { makeEvidenceStore } from '../../infrastructure/S3EvidenceStore';
+import { corsHeaders } from '../cors';
 
 /**
  * Error → HTTP mapper for the evidence endpoint (#6, spec R3/R4):
@@ -20,7 +21,7 @@ import { makeEvidenceStore } from '../../infrastructure/S3EvidenceStore';
 function notFound(): APIGatewayProxyResult {
   return {
     statusCode: 404,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       error: 'EvidenceNotFoundError',
       message: 'No evidence PDF exists for this request',
@@ -43,6 +44,7 @@ export function buildDownload(requests: RequestRepository, store: EvidenceStoreP
       return {
         statusCode: 200,
         headers: {
+          ...corsHeaders,
           'Content-Type': 'application/pdf',
           'Content-Disposition': `inline; filename="evidence-${id}.pdf"`,
         },
@@ -52,7 +54,7 @@ export function buildDownload(requests: RequestRepository, store: EvidenceStoreP
     } catch (err) {
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           error: (err as Error)?.name ?? 'Error',
           message: (err as Error)?.message ?? 'Unexpected error',

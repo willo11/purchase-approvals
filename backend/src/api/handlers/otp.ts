@@ -24,6 +24,7 @@ import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepos
 import { makeApproverRepository } from '../../infrastructure/DynamoDbApproverRepository';
 import { makeOtpRepository } from '../../infrastructure/DynamoDbOtpRepository';
 import { makeMockMailRepo } from '../../infrastructure/MockMailRepo';
+import { corsHeaders } from '../cors';
 
 /**
  * Error → HTTP mapper for the OTP endpoints (design-api policy):
@@ -75,7 +76,7 @@ function errorResponse(err: unknown): { status: number; body: Record<string, unk
 function json(status: number, body: unknown): APIGatewayProxyResult {
   return {
     statusCode: status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
 }
