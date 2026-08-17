@@ -81,10 +81,14 @@ describe('PdfGenerator (task 5.1, spec R1)', () => {
     expect(text).toContain('Requester: Carol');
   });
 
-  it('renders exactly 3 signature rows with the registered names and their timestamps (R1)', async () => {
+  it('renders exactly 3 signature rows with the registered name + email and their timestamps (R1)', async () => {
     const text = await pageText(await generator.generate(completedDetail()));
 
     expect(text).toContain('Signatures:');
+    // Each row carries the registered name, its EMAIL, the status and timestamp.
+    expect(text).toContain('1. Bob <bob@example.com>');
+    expect(text).toContain('2. Dave <dave@example.com>');
+    expect(text).toContain('3. Emma <emma@example.com>');
     expect(text).toContain('Bob');
     expect(text).toContain('Dave');
     expect(text).toContain('Emma');
