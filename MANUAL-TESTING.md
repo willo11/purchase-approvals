@@ -12,10 +12,6 @@ PRs land.
 > without AWS), `APPROVER_BASE_URL` pre-set for local approval links, the
 > requester empty-users seed hint, and the one-shot `pnpm run demo:setup`.
 >
-> **PR #10 — demo seed scenarios**: `pnpm -C backend run db:seed-scenarios`
-> seeds 4 ready-made demo states (rejected / completed / regenerated OTP /
-> fresh) by driving the real API, plus walkthrough tips on the demo hub.
->
 > **PR #11 — lockout recovery (POST-RELEASE feature)**: requester-initiated
 > recovery of a LOCKED approver's OTP — `POST
 > /api/purchase-requests/{requestId}/approvers/{email}/recover`, scoped to a
@@ -487,24 +483,18 @@ no PDF appears (download → 404).
 - Approval links open the composed approver UI on the **CloudFront origin**
   (`APPROVER_BASE_URL` set to it in the deployed backend).
 
-### Demo scenarios script (db:seed-scenarios)
+### Running the full demo flow
 
-`pnpm -C backend run db:seed-scenarios` drives the RUNNING backend API
-(`http://localhost:4000/dev`) to build ready-made demo states. Run it AFTER
-`pnpm -C backend run dev` (a second terminal), with the table + demo cast
-seeded (`pnpm run demo:setup`). The script logs every step ("Created request …
-(PENDING)", "Issued OTP for ana@example.com", "Validated OTP",
-"Approved — 2/3 signed", "REJECTED ✓", "COMPLETED ✓"…).
+Demo data is **not pre-seeded beyond the user cast** (`pnpm run demo:setup` only
+runs `db:up && db:create-table && db:seed` for the 4 demo users). Create the
+requests yourself through the running app and drive the happy path end to end:
 
-Each run creates a **NEW set of requests** — nothing is cleaned up, the demo
-grows (existing data is untouched).
-
-| Seeded request | Status | How to verify |
-|----------------|--------|---------------|
-| Rejected demo | `REJECTED` | open any of its approval links → the gate shows the terminal screen (410, nothing to act on) |
-| Completed demo | `COMPLETED` | detail shows COMPLETED; `GET /api/purchase-requests/<id>/evidence.pdf` → **200 real PDF** (`file` → "PDF document") thanks to `EVIDENCE_STORE=memory` |
-| Pending demo (OTP regenerated) | `PENDING` | Ana has **2 OTP mails** in mock-mail — use the LATEST code (only the newest is stored; an older one returns 401). The OTP expires after 180s: once expired, open the link and choose "Generate new OTP" |
-| Pending demo (fresh) | `PENDING` | drive the full happy path yourself: open a link → OTP → approve ×3 → COMPLETED + PDF |
+1. Seed the users: `pnpm run demo:setup` (backend must be freshly up).
+2. Create a request for 3 approvers from the Requester panel (`/requester`).
+3. Open each approver's approval link from the demo inbox (`/mock-mail`).
+4. Enter the OTP mailed to that approver.
+5. Approve ×3 (one per approver) → the request completes.
+6. Download the PDF from the completed request's detail page.
 
 ### Offline PDF round-trip check (`test:offline-pdf`)
 

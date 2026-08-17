@@ -31,36 +31,30 @@ pnpm run demo:setup
 
 # 5. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
 pnpm run dev
-
-# 6. (Optional, separate terminal) Seed READY-MADE demo states. The backend
-#    must be running (step 5) — the script drives the real API to build 4 demo
-#    requests (rejected / completed / pending with regenerated OTP / fresh).
-pnpm -C backend run db:seed-scenarios
 ```
 
 Open **http://localhost:3000** → the demo hub: **Requester panel** (`/requester`)
 to create a request, or **Approver console** (`/demo`) to see every request and
 jump straight into each approver's OTP flow. The demo inbox is
 **http://localhost:4000/dev/mock-mail** (backend JSON, filterable per recipient
-with `?to=<email>`). Complete all 3 approvals → **COMPLETED** + **Download PDF**
+with `?to=<recipient>`). Complete all 3 approvals → **COMPLETED** + **Download PDF**
 (works locally thanks to the in-memory evidence store — see
 [Local run instructions](#local-run-instructions)).
 
-## Demo scenarios (one command)
+## How to run the demo
 
-After the stack is up, `pnpm -C backend run db:seed-scenarios` (run from a
-second terminal while `pnpm run dev` is running) drives the **real backend
-API** to build four ready-made states to explore:
+Demo data is **not pre-seeded beyond the user cast**. `pnpm run demo:setup`
+only seeds the 4 demo users (`db:seed`); the requests themselves are created
+through the running app. To explore the full flow:
 
-| Seeded request | State | How to explore |
-|----------------|-------|----------------|
-| **Rejected demo** | `REJECTED` | open any of its approval links → terminal screen (nothing to act on) |
-| **Completed demo** | `COMPLETED` | detail shows COMPLETED + **Download PDF** (real PDF with `EVIDENCE_STORE=memory`) |
-| **Pending demo (OTP regenerated)** | `PENDING` | Ana has 2 OTP mails — use the LATEST code (only the newest is stored; an older one returns 401). The OTP expires after 180s: once expired, open the link and choose "Generate new OTP" |
-| **Pending demo (fresh)** | `PENDING` | drive the full happy path yourself: OTP → approve ×3 → COMPLETED + PDF |
-
-Every run creates a **new** set of requests — there is no cleanup, the demo
-grows (existing data is untouched).
+1. **Seed the users** (done in quick path step 4): `pnpm run demo:setup` runs
+   `db:up && db:create-table && db:seed`.
+2. **Create a request** from the Requester panel (`/requester`) for 3 approvers.
+3. **Open its approval link** for each approver from the demo inbox
+   (`/mock-mail`).
+4. **Enter the OTP** mailed to that approver.
+5. **Approve ×3** (one per approver) → the request completes.
+6. **Download the PDF** evidence from the completed request's detail page.
 
 ## System description
 

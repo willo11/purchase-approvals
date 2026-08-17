@@ -10,29 +10,28 @@ function renderPage() {
   );
 }
 
-describe('LandingPage (demo hub scenarios)', () => {
-  test('renders the demo scenarios section with all four scenario names', () => {
+describe('LandingPage (demo hub tips)', () => {
+  test('walks through the full demo flow without claiming seeded states', () => {
     renderPage();
 
     expect(
-      screen.getByRole('heading', { name: /demo scenarios/i })
+      screen.getByRole('heading', { name: /demo tips/i })
     ).toBeInTheDocument();
-    expect(screen.getByText('Full flow')).toBeInTheDocument();
-    expect(screen.getByText('Rejected')).toBeInTheDocument();
-    expect(screen.getByText('Regenerated OTP')).toBeInTheDocument();
-    expect(screen.getByText('Completed + PDF')).toBeInTheDocument();
-    // The seeder command is advertised right under the heading.
-    expect(screen.getByText(/db:seed-scenarios/i)).toBeInTheDocument();
+    // The hub advertises the run-it-yourself flow, not seeded scenarios.
+    expect(screen.getByText(/How to run the demo/i)).toBeInTheDocument();
+    expect(screen.getByText(/pnpm -C backend run db:seed/i)).toBeInTheDocument();
+    expect(screen.getByText(/create a request in the \/requester panel/i)).toBeInTheDocument();
+    expect(screen.getByText(/open its approval link from \/mock-mail/i)).toBeInTheDocument();
+    expect(screen.getByText(/enter the OTP, approve ×3/i)).toBeInTheDocument();
+    expect(screen.getByText(/Download PDF from the completed request/i)).toBeInTheDocument();
   });
 
-  test('explains the regenerated OTP scenario (2 mails, latest code, generate new OTP)', () => {
+  test('keeps the inbox and ports tips for navigating the local demo', () => {
     renderPage();
 
-    // Primary instruction first: use the LATEST code (only the newest is stored).
-    expect(screen.getByText(/Ana has 2 OTP mails — use the LATEST code/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/only the newest is stored; an older one returns 401/i)
+      screen.getByText(/http:\/\/localhost:4000\/dev\/mock-mail/i)
     ).toBeInTheDocument();
-    expect(screen.getByText(/"Generate new OTP"/i)).toBeInTheDocument();
+    expect(screen.getByText(/Host :3000 · Requester :3001 · Approver :3002 · Backend :4000/i)).toBeInTheDocument();
   });
 });
