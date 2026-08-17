@@ -31,6 +31,11 @@ pnpm run demo:setup
 
 # 5. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
 pnpm run dev
+
+# 6. (Optional, separate terminal) Seed READY-MADE demo states. The backend
+#    must be running (step 5) — the script drives the real API to build 4 demo
+#    requests (rejected / completed / pending with regenerated OTP / fresh).
+pnpm -C backend run db:seed-scenarios
 ```
 
 Open **http://localhost:3000** → the demo hub: **Requester panel** (`/requester`)
@@ -40,6 +45,22 @@ jump straight into each approver's OTP flow. The demo inbox is
 with `?to=<email>`). Complete all 3 approvals → **COMPLETED** + **Download PDF**
 (works locally thanks to the in-memory evidence store — see
 [Local run instructions](#local-run-instructions)).
+
+## Demo scenarios (one command)
+
+After the stack is up, `pnpm -C backend run db:seed-scenarios` (run from a
+second terminal while `pnpm run dev` is running) drives the **real backend
+API** to build four ready-made states to explore:
+
+| Seeded request | State | How to explore |
+|----------------|-------|----------------|
+| **Rejected demo** | `REJECTED` | open any of its approval links → terminal screen (nothing to act on) |
+| **Completed demo** | `COMPLETED` | detail shows COMPLETED + **Download PDF** (real PDF with `EVIDENCE_STORE=memory`) |
+| **Pending demo (OTP regenerated)** | `PENDING` | Ana has 2 OTP mails — only the NEWEST code validates; the expired link offers "Generate new OTP" |
+| **Pending demo (fresh)** | `PENDING` | drive the full happy path yourself: OTP → approve ×3 → COMPLETED + PDF |
+
+Every run creates a **new** set of requests — there is no cleanup, the demo
+grows (existing data is untouched).
 
 ## System description
 

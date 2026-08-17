@@ -11,6 +11,10 @@ PRs land.
 > the local in-memory evidence store (`EVIDENCE_STORE=memory`, Download PDF
 > without AWS), `APPROVER_BASE_URL` pre-set for local approval links, the
 > requester empty-users seed hint, and the one-shot `pnpm run demo:setup`.
+>
+> **PR #10 — demo seed scenarios**: `pnpm -C backend run db:seed-scenarios`
+> seeds 4 ready-made demo states (rejected / completed / regenerated OTP /
+> fresh) by driving the real API, plus walkthrough tips on the demo hub.
 
 ---
 
@@ -432,6 +436,25 @@ no PDF appears (download → 404).
   document") — proves `apiGateway.binaryMediaTypes` works; offline cannot.
 - Approval links open the composed approver UI on the **CloudFront origin**
   (`APPROVER_BASE_URL` set to it in the deployed backend).
+
+### Demo scenarios script (db:seed-scenarios)
+
+`pnpm -C backend run db:seed-scenarios` drives the RUNNING backend API
+(`http://localhost:4000/dev`) to build ready-made demo states. Run it AFTER
+`pnpm -C backend run dev` (a second terminal), with the table + demo cast
+seeded (`pnpm run demo:setup`). The script logs every step ("Created request …
+(PENDING)", "Issued OTP for ana@example.com", "Validated OTP",
+"Approved — 2/3 signed", "REJECTED ✓", "COMPLETED ✓"…).
+
+Each run creates a **NEW set of requests** — nothing is cleaned up, the demo
+grows (existing data is untouched).
+
+| Seeded request | Status | How to verify |
+|----------------|--------|---------------|
+| Rejected demo | `REJECTED` | open any of its approval links → the gate shows the terminal screen (410, nothing to act on) |
+| Completed demo | `COMPLETED` | detail shows COMPLETED; `GET /api/purchase-requests/<id>/evidence.pdf` → **200 real PDF** (`file` → "PDF document") thanks to `EVIDENCE_STORE=memory` |
+| Pending demo (OTP regenerated) | `PENDING` | Ana has **2 OTP mails** for it in mock-mail: only the newest validates; the expired one's link offers "Generate new OTP" |
+| Pending demo (fresh) | `PENDING` | drive the full happy path yourself: open a link → OTP → approve ×3 → COMPLETED + PDF |
 
 ---
 
