@@ -3,6 +3,7 @@ import { API_BASE_URL, toErrorView } from '@/api/client';
 import { findApprovalLinkFor, isSameOrigin, listMail } from '@/api/mail';
 import { getRequest, listRequests } from '@/api/requests';
 import { toDetailView, toSummaryView } from '@/api/mappers';
+import StatusBadge from '../components/StatusBadge';
 
 /**
  * Approver console (`/demo`) — the demo hub's approver side.
@@ -142,17 +143,7 @@ export default function DemoPage() {
               <span className="font-medium">{request.title}</span>
               <span className="flex items-center gap-3 text-sm">
                 <span className="text-muted-foreground">{request.amountLabel}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    request.status === 'COMPLETED'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : request.status === 'REJECTED'
-                        ? 'bg-destructive/10 text-destructive'
-                        : 'bg-secondary text-secondary-foreground'
-                  }`}
-                >
-                  {request.statusLabel}
-                </span>
+                <StatusBadge status={request.status}>{request.statusLabel}</StatusBadge>
               </span>
             </button>
           ))}
@@ -184,7 +175,9 @@ export default function DemoPage() {
               >
                 <p className="font-medium">{approver.name}</p>
                 <p className="text-sm text-muted-foreground">{approver.email}</p>
-                <p className="mt-2 text-xs font-medium">{approver.statusLabel}</p>
+                <p className="mt-2">
+                  <StatusBadge status={approver.status}>{approver.statusLabel}</StatusBadge>
+                </p>
               </button>
             ))}
           </div>
