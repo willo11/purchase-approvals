@@ -32,7 +32,11 @@ const SWAGGER_UI_STANDALONE_PRESET_JS =
 function readSpec(): string {
   // `dist/docs/openapi.json` is where the build copies the generated spec;
   // fall back to `docs/openapi.json` so unit tests (cwd = backend/) can read
-  // it without a preceding build.
+  // it without a preceding build. NOTE: resolution is cwd-dependent — the
+  // Lambda runs with its package root as cwd (dist/ next to docs/), and the
+  // Jest tests pass from `backend/`. A stale `dist/docs/openapi.json` wins
+  // over the committed file, which is why the drift-guard unit test asserts
+  // they stay byte-identical.
   const candidates = [
     resolve(process.cwd(), 'dist', 'docs', 'openapi.json'),
     resolve(process.cwd(), 'docs', 'openapi.json'),
