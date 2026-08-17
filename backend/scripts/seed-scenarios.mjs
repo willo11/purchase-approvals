@@ -125,6 +125,28 @@ function signedCount(detail) {
   return detail.approvers.filter((approver) => approver.status === 'SIGNED').length;
 }
 
+/**
+ * Asserts a seeded scenario reached its expected global state. Any mismatch
+ * fails the whole seed (exit 1) so a broken run is caught immediately.
+ */
+async function assertState(id, label, expectedStatus) {
+  const detail = await request('GET', `/api/purchase-requests/${id}`);
+  if (detail.status !== expectedStatus) {
+    throw new Error(`"${label}" expected final state ${expectedStatus}, got ${detail.status}`);
+  }
+  console.log(`  ✓ "${label}" final state ${detail.status}`);
+}
+
+/** Asserts the regenerated scenario left Ana with exactly 2 OTP mails. */
+async function assertRegeneratedOtps(id) {
+  const mails = await request('GET', `/mock-mail?to=${encodeURIComponent('ana@example.com')}`);
+  const otpMails = mails.filter((m) => m.type === 'OTP' && m.subject?.includes(id));
+  if (otpMails.length !== 2) {
+    throw new Error(`"Pending demo (OTP regenerated)" expected 2 OTP mails for Ana, got ${otpMails.length}`);
+  }
+  console.log(`  ✓ "Pending demo (OTP regenerated)" has ${otpMails.length} OTP mails for Ana (newest valid)`);
+}
+
 /** Confirms a completed request's evidence PDF is downloadable (memory store). */
 async function checkEvidence(requestId) {
   const res = await fetch(`${API_BASE_URL}/api/purchase-requests/${requestId}/evidence.pdf`);
@@ -158,9 +180,9 @@ async function seedRejected() {
 
   const anaToken = await approverTokenFor('ana@example.com', id);
   await issueOtpAndValidate('ana@example.com', id, anaToken);
-  await request('POST', `/api/approvals/${id}/token/${anaToken}/reject`, { confirm: true });
-  const rejected = await request('GET', `/api/purchase-requests/${id}`);
-  console.log(`  Rejected request (confirm: true) — global status ${rejected.status} ✓`);
+  const rejected = await request('POST', `/api/approvals/${id}/token/${anaToken}/reject`, { confirm: true });
+  console.log(`  Rejected request (confirm: true) → global status ${rejected.status}`);
+  await assertState(id, 'Rejected demo', 'REJECTED');
   console.log('  Sven + Luca links now show the terminal state (410) — nothing to act on');
 }
 
@@ -186,8 +208,7 @@ async function seedCompleted() {
     signed = signedCount(updated);
     console.log(`  Approved — ${signed}/3 signed`);
   }
-  const completed = await request('GET', `/api/purchase-requests/${id}`);
-  console.log(`  Request ${id} — global status ${completed.status} ✓`);
+  await assertState(id, 'Completed demo', 'COMPLETED');
   await checkEvidence(id);
 }
 
@@ -211,10 +232,11 @@ async function seedRegeneratedOtp() {
   await sleep(400);
   await request('POST', `/api/approvals/${id}/token/${anaToken}/otp/regenerate`);
   console.log(
-    '  Regenerated OTP for ana@example.com (mail #2) — 2 OTP mails now; the NEWEST code is valid ✓'
+    '  Regenerated OTP for ana@example.com (mail #2) — 2 OTP mails now; the NEWEST code is valid'
   );
-  const pending = await request('GET', `/api/purchase-requests/${id}`);
-  console.log(`  Request stays ${pending.status} — fresh link + continue with the latest code`);
+  await assertState(id, 'Pending demo (OTP regenerated)', 'PENDING');
+  await assertRegeneratedOtps(id);
+  console.log('  Fresh link + newest OTP ready — continue with the LATEST code');
 }
 
 async function seedFresh() {
@@ -232,6 +254,7 @@ async function seedFresh() {
   console.log(
     '  Fresh approval links in mock-mail — issue the OTPs yourself through the approver console'
   );
+  await assertState(id, 'Pending demo (fresh)', 'PENDING');
 }
 
 async function main() {
@@ -240,8 +263,9 @@ async function main() {
     'Requires: backend running, table created and demo cast seeded (pnpm run demo:setup).\n'
   );
 
+  // Resolve the demo cast ONCE — the registry is static for the run.
+  const users = await request('GET', '/api/users');
   for (const email of REQUIRES) {
-    const users = await request('GET', '/api/users');
     if (!users.some((user) => user.email === email)) {
       throw new Error(`Demo cast missing ${email} — run \`pnpm run demo:setup\` (db:seed) first`);
     }
