@@ -14,7 +14,12 @@ pnpm install && pnpm -C backend install && pnpm -C frontend/host install && \
 # 2. Local env — the template already sets the demo switches:
 #    EVIDENCE_STORE=memory (Download PDF works locally without AWS creds) and
 #    APPROVER_BASE_URL=http://localhost:3000 (mailed links open the host).
-cp backend/.env.example backend/.env
+#    Fresh clone: cp backend/.env.example backend/.env
+#    EXISTING backend/.env (e.g. created before this PR): do NOT overwrite it —
+#    copy (cp) clobbers any custom values. Add the two new keys manually:
+#      EVIDENCE_STORE=memory
+#      APPROVER_BASE_URL=http://localhost:3000
+cp backend/.env.example backend/.env   # or extend your existing backend/.env
 
 # 3. Build the backend (dist/ is gitignored; serverless.yml loads handlers
 #    from dist/, so a fresh clone has nothing to serve until this runs)
@@ -233,7 +238,9 @@ as the machine-readable artifact.
    API fails at runtime (the client is built from that env var).
 2. **Remove `EVIDENCE_STORE=memory`** — deployed Lambdas must use the S3
    evidence store; a process-local in-memory store would lose every PDF on a
-   cold start (the template's local default is memory).
+   cold start (the template's local default is memory). The `predeploy` guard
+   (`scripts/guard-no-memory-store.mjs`, run by `pnpm -C backend run deploy`)
+   FAILS the deploy while it is set.
 3. **Set `APPROVER_BASE_URL`** to the frontend origin (CloudFront URL, see 8.4)
    so mock-mail approval links open the approver UI — not the API Gateway URL.
 4. Keep `AWS_REGION`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` pointing at
@@ -245,8 +252,12 @@ as the machine-readable artifact.
 # 1. Build the TypeScript bundle (validated: PASS)
 pnpm -C backend run build
 
-# 2. Deploy — provisions the DynamoDB table, S3 bucket, IAM and all functions
-pnpm -C backend exec sls deploy --stage dev --region us-east-1
+# 2. Deploy — provisions the DynamoDB table, S3 bucket, IAM and all functions.
+#    Runs `predeploy` FIRST: the deploy guard (scripts/guard-no-memory-store.mjs)
+#    FAILS the deploy if EVIDENCE_STORE=memory is still set in backend/.env or
+#    the shell environment — the in-memory store must never reach deployed
+#    Lambdas (PDFs would be lost on cold start, download 404).
+pnpm -C backend run deploy -- --stage dev --region us-east-1
 ```
 
 **Record after deploy** (from `sls deploy` output → "Service Information"):
