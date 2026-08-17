@@ -6,7 +6,7 @@
   "scripts": {
     "build:ci": "pnpm -C backend run build && pnpm -C frontend/host run build && pnpm -C frontend/requester run build && pnpm -C frontend/approver run build",
     "test:ci": "pnpm -C backend test && pnpm -C frontend/host test && pnpm -C frontend/requester test && pnpm -C frontend/approver test",
-    "demo:setup": "pnpm -C backend run db:up && pnpm -C backend run db:create-table && pnpm -C backend run db:seed",
+    "demo:setup": "pnpm -C backend run db:up && sleep 3 && pnpm -C backend run db:create-table && pnpm -C backend run db:seed",
     "dev:back": "pnpm -C backend run dev:all",
     "dev:front": "concurrently -k -n host,req,app \"pnpm -C frontend/host start\" \"pnpm -C frontend/requester start\" \"pnpm -C frontend/approver start\"",
     "dev": "concurrently -k -n back,front \"pnpm run dev:back\" \"pnpm run dev:front\""
