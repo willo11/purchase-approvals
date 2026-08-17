@@ -38,3 +38,20 @@ export function findApprovalLinkFor(mails, requestId) {
   });
   return match ? match.link : null;
 }
+
+/**
+ * True when the mailed link's origin equals the console's origin — i.e. the
+ * link opens the SAME frontend the user is looking at (the /approve gate
+ * composed by the host). When `APPROVER_BASE_URL` is unset the backend's
+ * TokenIssuer defaults to its own origin (http://localhost:4000) and mailed
+ * links would hard-navigate the user to the raw API — a dead page. The
+ * console refuses to navigate in that case and shows an actionable error.
+ * Pure helper, unit-tested.
+ */
+export function isSameOrigin(rawUrl, origin) {
+  try {
+    return new URL(rawUrl).origin === origin;
+  } catch {
+    return false; // unparseable — never claim a match
+  }
+}

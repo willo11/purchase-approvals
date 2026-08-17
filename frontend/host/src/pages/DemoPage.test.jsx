@@ -59,13 +59,14 @@ const mails = [
 ];
 
 // jsdom does not implement navigation — replace window.location so the page
-// can "navigate" and the tests can assert where it went.
+// can "navigate" and the tests can assert where it went. `origin` mirrors the
+// real console origin the mail links must match (APPROVER_BASE_URL=:3000).
 const realLocation = window.location;
 
 beforeEach(() => {
   jest.clearAllMocks();
   delete window.location;
-  window.location = { href: '' };
+  window.location = { href: '', origin: 'http://localhost:3000' };
 });
 
 afterEach(() => {
@@ -162,6 +163,42 @@ describe('DemoPage (approver console)', () => {
     expect(
       await screen.findByRole('alert')
     ).toHaveTextContent(/No approval link found for Sven \(sven@example\.com\)/i);
+    // The inbox hint derives from API_BASE_URL (truthful for any origin).
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'http://localhost:4000/dev/mock-mail?to=sven%40example.com'
+    );
+    expect(window.location.href).toBe('');
+  });
+
+  test('refuses to navigate when the mailed link points at a DIFFERENT origin (APPROVER_BASE_URL unset)', async () => {
+    // TokenIssuer default: links built from http://localhost:4000 (the backend).
+    const backendMails = [
+      {
+        id: 'mail-1',
+        to: 'ana@example.com',
+        type: 'APPROVAL_LINK',
+        subject: 'Approval needed',
+        body: 'Please approve.',
+        link: 'http://localhost:4000/approve?request_id=req-1&approver_token=token-ana',
+        createdAt: '2026-08-14T00:00:05.000Z',
+      },
+    ];
+    apiClient.get.mockImplementation((url) => {
+      if (url === '/api/purchase-requests') return Promise.resolve({ data: summaries });
+      if (url === '/api/purchase-requests/req-1') return Promise.resolve({ data: detail });
+      if (url === '/mock-mail') return Promise.resolve({ data: backendMails });
+      return Promise.resolve({ data: [] });
+    });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByText('Replace laptops'));
+    await user.click(await screen.findByText('ana@example.com'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/APPROVER_BASE_URL=http:\/\/localhost:3000/);
+    expect(alert).toHaveTextContent(/restart the backend/);
+    // No navigation happened.
     expect(window.location.href).toBe('');
   });
 

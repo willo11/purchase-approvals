@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { toErrorView } from '@/api/client';
-import { listMail, findApprovalLinkFor } from '@/api/mail';
+import { API_BASE_URL, toErrorView } from '@/api/client';
+import { findApprovalLinkFor, isSameOrigin, listMail } from '@/api/mail';
 import { getRequest, listRequests } from '@/api/requests';
 import { toDetailView, toSummaryView } from '@/api/mappers';
 
@@ -61,8 +61,20 @@ export default function DemoPage() {
           setApproverError(
             `No approval link found for ${approver.name} (${approver.email}) in this request's mail. ` +
               'Approval-link mails are sent when the request is created — check the inbox at ' +
-              'http://localhost:4000/dev/mock-mail?to=' +
-              `${encodeURIComponent(approver.email)}.`
+              `${API_BASE_URL}/mock-mail?to=${encodeURIComponent(approver.email)}.`
+          );
+          return;
+        }
+        // Origin guard: the mailed link must point at THIS frontend. A stale
+        // backend/.env without APPROVER_BASE_URL makes TokenIssuer default to
+        // the backend origin (http://localhost:4000) — navigating there is a
+        // dead page. Surface an actionable error instead of silently leaving.
+        if (!isSameOrigin(link, window.location.origin)) {
+          setApproverError(
+            `The approval link for ${approver.name} points at ${new URL(link).origin}, ` +
+              `not this console (${window.location.origin}). ` +
+              'Set `APPROVER_BASE_URL=http://localhost:3000` in `backend/.env` and restart ' +
+              'the backend, then reload this page.'
           );
           return;
         }

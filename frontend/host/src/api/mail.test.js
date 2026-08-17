@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { findApprovalLinkFor, listMail } from './mail';
+import { findApprovalLinkFor, isSameOrigin, listMail } from './mail';
 
 jest.mock('axios', () => {
   const mockInstance = { get: jest.fn() };
@@ -74,5 +74,32 @@ describe('findApprovalLinkFor', () => {
   test('tolerates an empty or null mail list', () => {
     expect(findApprovalLinkFor([], 'req-1')).toBeNull();
     expect(findApprovalLinkFor(null, 'req-1')).toBeNull();
+  });
+});
+
+describe('isSameOrigin (console navigation guard)', () => {
+  test('true when the mailed link shares the console origin', () => {
+    expect(
+      isSameOrigin(
+        'http://localhost:3000/approve?request_id=req-1&approver_token=aaa',
+        'http://localhost:3000'
+      )
+    ).toBe(true);
+  });
+
+  test('false when the link points at the raw backend (APPROVER_BASE_URL unset)', () => {
+    expect(
+      isSameOrigin(
+        'http://localhost:4000/approve?request_id=req-1&approver_token=aaa',
+        'http://localhost:3000'
+      )
+    ).toBe(false);
+  });
+
+  test('false for a different host or malformed URL', () => {
+    expect(
+      isSameOrigin('https://other.example.com/approve?request_id=req-1', 'http://localhost:3000')
+    ).toBe(false);
+    expect(isSameOrigin('not a url', 'http://localhost:3000')).toBe(false);
   });
 });
