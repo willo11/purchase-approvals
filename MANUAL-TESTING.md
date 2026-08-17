@@ -15,6 +15,13 @@ PRs land.
 > **PR #10 — demo seed scenarios**: `pnpm -C backend run db:seed-scenarios`
 > seeds 4 ready-made demo states (rejected / completed / regenerated OTP /
 > fresh) by driving the real API, plus walkthrough tips on the demo hub.
+>
+> **PR #11 — lockout recovery (POST-RELEASE feature)**: requester-initiated
+> recovery of a LOCKED approver's OTP — `POST
+> /api/purchase-requests/{requestId}/approvers/{email}/recover`, scoped to a
+> LOCKED approver ONLY (an innocent pending approver's OTP is never re-issued).
+> Adds `ApproverView.locked` + a requester "Locked" badge and "Re-send OTP"
+> button for locked approvers. See the PR #11 section below.
 
 ---
 
@@ -213,6 +220,49 @@ curl -s -w "\nHTTP:%{http_code}\n" -X POST \
 > **Routes/status codes** may vary by one letter if the handler differs from this guide's shape —
 > the authoritative table is `openspec/changes/purchase-approval-flow/design-api.md`. If a curl
 > doesn't match, first confirm the exact path there.
+
+---
+
+### PR #11 — lockout recovery (requester-initiated, LOCKED-ONLY)
+
+A locked approver (3 failed OTP attempts → `tokenStatus=INVALIDATED_LOCKOUT`, so even the
+correct code → 403) has NO self-service path. The REQUESTER can recover them via
+`POST /api/purchase-requests/{requestId}/approvers/{email}/recover` — which resets ONLY a
+LOCKED approver and issues them a FRESH OTP they are mailed. It never touches an innocent
+pending approver (their OTP only changes via their OWN issue/regenerate flow, → 409).
+
+```bash
+# 1. (optional) Verify the approver is locked via the request detail: ApproverView.locked
+curl -s http://localhost:4000/dev/api/purchase-requests/ID
+
+# 2. Recover the LOCKED approver → 201 {expiresInSeconds:180}
+#    (bob locked himself by 3 wrong codes in PR #3 step 4)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/purchase-requests/ID/approvers/bob@example.com/recover \
+  -H "Content-Type: application/json"
+
+# 3. Validate the NEW code (grab it from /mock-mail) → 200 {valid:true} — the recovered
+#    approver is ACTIVE again and their fresh code works end-to-end
+curl -s -X POST http://localhost:4000/dev/api/approvals/ID/token/TOKEN/otp/validate \
+  -H "Content-Type: application/json" -d '{"email":"bob@example.com","code":"NEW_CODE"}'
+```
+
+**409-when-not-locked (the LOCKED-ONLY rule)**: recovering a NON-locked approver (e.g. a
+`PENDING`/`ACTIVE` one who never locked) returns **409 `ApproverNotLockedError`** and issues
+NO OTP / NO mail — their code is never changed by someone else's action:
+
+```bash
+# carol is NOT locked → 409 (locked-only: her OTP is never re-issued by an action she
+# doesn't control)
+curl -s -w "\nHTTP:%{http_code}\n" -X POST \
+  http://localhost:4000/dev/api/purchase-requests/ID/approvers/carol@example.com/recover \
+  -H "Content-Type: application/json"
+```
+
+**Other codes**: unknown request or approver-not-in-request → `404`; terminal request
+(`COMPLETED`/`REJECTED`) → `410` (no recovery on a finished request). The requester UI shows
+a distinct **Locked** badge + **Re-send OTP** button ONLY for locked approvers; pending
+non-locked approvers show PENDING with no resend; terminal requests offer no recovery.
 
 ---
 

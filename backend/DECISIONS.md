@@ -241,3 +241,16 @@
 - **Tradeoff (c) — APPROVER_BASE_URL**: the approval link host in local dev.
   - **Decision**: `TokenIssuer` reads `APPROVER_BASE_URL` (default `http://localhost:4000`); the README instructs setting it to the **frontend origin** (`http://localhost:3000` locally, the CloudFront URL in production) so mailed links open the composed approver UI.
   - **Why**: the link host is the frontend's concern (the approver remote), not the backend's; the env var decouples them.
+
+---
+
+## 25. Lockout recovery: requester/owner-initiated, LOCKED-ONLY scoping (post-release)
+- **Problem**: a locked approver (3 failed OTP attempts → `tokenStatus=INVALIDATED_LOCKOUT`) has NO recovery path. The approver cannot unlock themselves — that would defeat the purpose of the lockout — so the recovery must be an AUTHORIZED action by the request OWNER (the requester), not the locked approver.
+- **Decision**:
+  1. **`ApproverView.locked` (boolean)** is exposed on the request-detail endpoint (derived from `tokenStatus === 'INVALIDATED_LOCKOUT'`), so the requester can SEE which approver is locked and is only ever offered recovery there.
+  2. **`POST /api/purchase-requests/{requestId}/approvers/{email}/recover`** → the requester-initiated recovery. **Gate chain**: request exists (404), global state not terminal (`COMPLETED`/`REJECTED` → 410), approver present in the request (404), approver IS locked (else 409).
+  3. **LOCKED-ONLY scoping (the user's explicit product rule — do NOT weaken)**: `ApproverRepository.recoverIfLocked` is a compare-and-swap `UpdateItem` `SET attempts = :zero, tokenStatus = ACTIVE REMOVE validatedAt` guarded by **`ConditionExpression: tokenStatus = :locked`**. It returns `false` when the approver is NOT locked → the use case throws `ApproverNotLockedError` (409) and issues NO OTP / NO mail. An innocent PENDING approver's OTP is NEVER re-issued by an action they don't control — the ONLY ways their OTP changes are their OWN `issue`/`regenerate` requests via the token.
+  4. **On a valid locked approver**, the CAS reset is followed by issuing a FRESH OTP (reusing `OtpService` — generate 6-digit + sha256 digest, `OTP#<reqId>#<email>` TTL item 180s) and mailing it through `MailPort`, so the recorder is NOTIFIED of their new code (consistent with "the approver is notified"). Returns `201 { expiresInSeconds: 180 }`.
+- **Security framing (the interview line)**: "The lockout prevents brute-force; recovery is an AUTHORIZED OWNER action, NOT self-service — a locked approver can't unlock themselves by retrying. It only touches the locked approver (a CAS on `tokenStatus=locked`), so no one's OTP changes without their own flow — an innocent pending approver keeps their code until they act."
+- **Concurrency**: the CAS is the same atomic discipline as the lockout transition — under concurrent recoveries only ONE wins; a non-locked approver or an already-recovered one fails the condition → 409, so a fresh OTP is issued exactly once per lockout.
+- **Frontend**: the requester detail maps `ApproverView.locked` and shows a distinct "Locked" badge + a "Re-send OTP" button for LOCKED approvers only (pending non-locked approvers show PENDING with NO resend button; terminal requests offer no recovery).

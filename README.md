@@ -143,6 +143,8 @@ grows (existing data is untouched).
 
 **Reject path**: any approver can choose **Reject** (inline confirm) instead of Approve — the first reject wins, the request becomes `REJECTED`, all other links show the informational terminal screen.
 
+**Lockout recovery (known behavior)**: after 3 wrong OTP attempts an approver's token is `INVALIDATED_LOCKOUT` (even the correct code → 403). There is NO self-service unlock — the lockout is the brute-force protection. The **requester (owner)** can recover a LOCKED approver from the approval detail: a distinct **Locked** badge appears with a **Re-send OTP** button that calls `POST /api/purchase-requests/{id}/approvers/{email}/recover`. Recovery is scoped to a LOCKED approver ONLY — it resets that approver to ACTIVE and mails them a fresh OTP. An innocent `PENDING` (non-locked) approver shows PENDING with **no** resend button, so their OTP is never changed by an action they don't control (their code only changes via their own issue/regenerate flow).
+
 **Concurrency check (interview demo)**: open the same approval link in two tabs and approve almost simultaneously — exactly one `completedAt` is written and both tabs return the final state. Or have the 3rd approver approve while a reject races — `completed XOR rejected`, never both.
 
 ## Local run instructions
