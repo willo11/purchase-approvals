@@ -20,6 +20,37 @@ const DEMO_TIPS = [
   },
 ];
 
+/**
+ * Ready-made demo states created by `pnpm -C backend run db:seed-scenarios`
+ * (drives the real API; every run adds a new set). Each row tells the user how
+ * to explore one state from the hub.
+ */
+const DEMO_SCENARIOS = [
+  {
+    scenario: 'Full flow',
+    howTo:
+      'Seed, create a request, open its approval link from /mock-mail, enter the OTP, ' +
+      'approve ×3, then Download PDF.',
+  },
+  {
+    scenario: 'Rejected',
+    howTo:
+      'Open any approval link of the "Rejected demo" request — the gate shows the ' +
+      'terminal screen.',
+  },
+  {
+    scenario: 'Regenerated OTP',
+    howTo:
+      'In "Pending demo (OTP regenerated)" Ana has 2 OTP mails (newest valid): open the ' +
+      'link and enter the LATEST code; the expired one offers "Generate new OTP".',
+  },
+  {
+    scenario: 'Completed + PDF',
+    howTo:
+      'The "Completed demo" request shows COMPLETED + Download PDF on its detail page.',
+  },
+];
+
 const CARD_BASE =
   'group rounded-lg border bg-card p-6 shadow-sm transition hover:border-primary/40 hover:shadow-md';
 
@@ -57,6 +88,34 @@ export default function Landing() {
             Open approver console →
           </span>
         </Link>
+      </section>
+
+      <section className="rounded-lg border bg-card p-5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Demo scenarios
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Seed ready-made demo states through the real backend API:
+          <code className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs">
+            pnpm -C backend run db:seed-scenarios
+          </code>
+        </p>
+        <table className="mt-3 w-full text-left text-sm">
+          <thead>
+            <tr className="border-b text-muted-foreground">
+              <th className="w-44 pb-2 pr-4 font-medium">Scenario</th>
+              <th className="pb-2 font-medium">How to explore</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {DEMO_SCENARIOS.map((entry) => (
+              <tr key={entry.scenario}>
+                <td className="py-2 pr-4 align-top font-medium">{entry.scenario}</td>
+                <td className="py-2 text-muted-foreground">{entry.howTo}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className="rounded-lg border bg-card p-5">
