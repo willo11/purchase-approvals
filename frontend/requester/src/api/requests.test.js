@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { createRequest, downloadEvidence, getRequest, listRequests } from './requests';
+import { createRequest, downloadEvidence, getRequest, listRequests, recoverApproverOtp } from './requests';
 import { listUsers } from './users';
 
 jest.mock('axios', () => {
@@ -48,6 +48,15 @@ describe('requests API (endpoints #3/#4/#5/#6)', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/api/purchase-requests/r1/evidence.pdf', {
       responseType: 'blob',
     });
+  });
+
+  test('recoverApproverOtp POSTs /api/purchase-requests/{id}/approvers/{email}/recover', async () => {
+    apiClient.post.mockResolvedValue({ data: { expiresInSeconds: 180 } });
+    const result = await recoverApproverOtp('r1', 'dana@x.com');
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/purchase-requests/r1/approvers/dana%40x.com/recover'
+    );
+    expect(result).toEqual({ expiresInSeconds: 180 });
   });
 });
 

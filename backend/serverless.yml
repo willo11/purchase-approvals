@@ -169,7 +169,7 @@ functions:
     handler: dist/api/handlers/otp.recover
     events:
       - http:
-          path: api/purchase-requests/{requestId}/approvers/{email}/recover
+          path: api/purchase-requests/{id}/approvers/{email}/recover
           method: post
           cors: true
 

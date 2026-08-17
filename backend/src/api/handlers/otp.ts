@@ -135,7 +135,7 @@ export function buildRegenerateOtp(useCase: RegenerateOtp) {
 /** Recovers a locked approver's OTP: `POST .../approvers/{email}/recover` → 201. */
 export function buildRecoverApproverOtp(useCase: RecoverApproverOtp) {
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-    const requestId = event.pathParameters?.requestId ?? '';
+    const requestId = event.pathParameters?.id ?? '';
     const email = event.pathParameters?.email ?? '';
     try {
       const result = await useCase.execute({ requestId, email });

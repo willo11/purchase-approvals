@@ -14,7 +14,7 @@ PRs land.
 >
 > **PR #11 — lockout recovery (POST-RELEASE feature)**: requester-initiated
 > recovery of a LOCKED approver's OTP — `POST
-> /api/purchase-requests/{requestId}/approvers/{email}/recover`, scoped to a
+> /api/purchase-requests/{id}/approvers/{email}/recover`, scoped to a
 > LOCKED approver ONLY (an innocent pending approver's OTP is never re-issued).
 > Adds `ApproverView.locked` + a requester "Locked" badge and "Re-send OTP"
 > button for locked approvers. See the PR #11 section below.
@@ -235,7 +235,7 @@ curl -s -w "\nHTTP:%{http_code}\n" -X POST \
 
 A locked approver (3 failed OTP attempts → `tokenStatus=INVALIDATED_LOCKOUT`, so even the
 correct code → 403) has NO self-service path. The REQUESTER can recover them via
-`POST /api/purchase-requests/{requestId}/approvers/{email}/recover` — which resets ONLY a
+`POST /api/purchase-requests/{id}/approvers/{email}/recover` — which resets ONLY a
 LOCKED approver and issues them a FRESH OTP they are mailed. It never touches an innocent
 pending approver (their OTP only changes via their OWN issue/regenerate flow, → 409).
 
