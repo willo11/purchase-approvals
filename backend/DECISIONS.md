@@ -255,3 +255,39 @@
 - **Security framing (the interview line)**: "The lockout prevents brute-force; recovery is requester/owner-initiated and LOCKED-ONLY, NOT self-service — a locked approver can't unlock themselves by retrying. It only touches the locked approver (a CAS on `tokenStatus=locked`), so no one's OTP changes without their own flow — an innocent pending approver keeps their code until they act. This app has email-only/no-auth identity (Decision 10), so the 'owner' is only as authenticated as the rest of the API — in production the caller's identity (requester JWT) is the real gate."
 - **Concurrency**: the CAS is the same atomic discipline as the lockout transition — under concurrent recoveries only ONE wins; a non-locked approver or an already-recovered one fails the condition → 409, so a fresh OTP is issued exactly once per lockout.
 - **Frontend**: the requester detail maps `ApproverView.locked` and shows a distinct "Locked" badge + a "Re-send OTP" button for LOCKED approvers only (pending non-locked approvers show PENDING with NO resend button; terminal requests offer no recovery).
+
+---
+
+## 26. Single-table key/prefix index — the whole data model at a glance
+
+> The single-table (Decision 2) uses **prefixed keys**: the PK prefix names the entity,
+> so one table holds every aggregate, and a single GSI orders "lists by type". Every
+> access pattern is one read. This is the map you want on the whiteboard.
+
+| Entity | PK | SK | GSI1 (gsi1pk, gsi1sk) | Notes |
+|--------|----|----|----------------------|-------|
+| **User** (employee) | `USER#<email>` | `USER#<email>` | `USER` / `createdAt` | email is the identity (Decision 9/16) |
+| **PurchaseRequest** | `REQ#<id>` | `REQ#<id>` | `REQ` / `createdAt` | the aggregate root + concurrency lock |
+| **Approver record** | `REQ#<id>` | `APPR#<email>` | none (read via parent PK + `begins_with`) | durable per-approver state (status, token, attempts, validatedAt) |
+| **OTP** | `OTP#<requestId>#<email>` | same | none | **TTL item** — `otpExpiresAt` (180s) sweep only; in-code expiry is the gate (Decision 4/19) |
+| **Mail** (demo inbox) | `MAIL#<uuid>` | `MAIL#<uuid>` | `MAIL` / `createdAt` | the outbox (Decision 21); newest-first via `ScanIndexForward:false` |
+
+**Core rules to defend:**
+- **One table, keys encode entity + relation.** A request and its approvers live together:
+  the REQ row `REQ#<id>` plus its `REQ#<id>/APPR#<email>` rows are fetched in a single
+  parent-keyed query (no join — the relation is in the key). Query-first, not SQL-first.
+- **Why the TTL lives ONLY on the OTP item** (not the approver row): the approver is
+  durable audit/state; the OTP is disposable. Mapping table TTL to the approver row would
+  DELETE approval evidence when the code expires (Decision 4/19 trap).
+- **Why approve-vs-reject is a single row**: the global transition lives on ONE item
+  (`REQ#<id>`), so DynamoDB serializes the conditional write (compare-and-swap) and
+  guarantees exactly one winner for `COMPLETED`/`REJECTED` (Decision 13/22).
+- **GSI1 is the "list by type" index**: `USER`,`REQ`,`MAIL` use `(gsi1pk, gsi1sk=createdAt)`
+  for ordered listing; approver/OTP rows are never listed globally, so they don't index.
+- **The prefix vocabulary is the schema** (schemaless): `USER#`/`REQ#`/`APPR#`/`OTP#`/`MAIL#`
+  are your de-facto entity types — a type-safety discipline since DynamoDB has no schema.
+
+**Interview line**: "DynamoDB has no joins and no schema, so I model the access patterns:
+the PK prefix IS the entity type, the relation (request → approver) lives in the composite
+key, and the concurrency lock is a single row whose conditional write DynamoDB serializes.
+One table, every query is one read — the prefix map is the whole data model."
