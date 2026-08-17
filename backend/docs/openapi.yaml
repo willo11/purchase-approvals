@@ -434,18 +434,37 @@ paths:
         The demo inbox — approval-link and OTP mails, newest first. `otpPlain`
         is included ONLY in the simulated mail so the reviewer can drive the
         flow (the stored OTP is a SHA-256 digest; the plaintext is never
-        persisted). Link form:
+        persisted). Optionally restrict the log to one recipient with
+        `?to=<email>` (simulates "one user's inbox"; newest-first preserved).
+        Link form:
         `https://<host>/approve?request_id=<id>&approver_token=<uuid>`.
       operationId: listMockMail
+      parameters:
+        - name: to
+          in: query
+          required: false
+          description: >
+            Optional recipient filter — only mails sent to this email address
+            are returned, newest first. Malformed values → 400.
+          schema:
+            type: string
+            format: email
+            example: ana@example.com
       responses:
         '200':
-          description: Mail events, newest first
+          description: Mail events, newest first (optionally filtered by recipient)
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/MailEvent'
+        '400':
+          description: Malformed `to` query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ServerError'
 
