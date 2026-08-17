@@ -225,7 +225,7 @@ describe('POST .../otp/regenerate', () => {
 describe('POST .../approvers/:email/recover (requester-initiated recovery)', () => {
   function recoverEvent(email = 'bob@example.com'): APIGatewayProxyEvent {
     return {
-      pathParameters: { requestId: 'req-1', email },
+      pathParameters: { id: 'req-1', email },
     } as unknown as APIGatewayProxyEvent;
   }
 
@@ -270,7 +270,7 @@ describe('POST .../approvers/:email/recover (requester-initiated recovery)', () 
   it('returns 404 for an unknown request', async () => {
     const { recover } = buildRecover();
     const res = await recover({
-      pathParameters: { requestId: 'missing', email: 'bob@example.com' },
+      pathParameters: { id: 'missing', email: 'bob@example.com' },
     } as unknown as APIGatewayProxyEvent);
     expect(res.statusCode).toBe(404);
   });

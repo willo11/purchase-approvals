@@ -211,7 +211,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /api/purchase-requests/{requestId}/approvers/{email}/recover:
+  /api/purchase-requests/{id}/approvers/{email}/recover:
     post:
       tags: [requests]
       summary: 'Re-send OTP for a LOCKED approver (requester-initiated recovery)'
@@ -226,7 +226,7 @@ paths:
       operationId: recoverApproverOtp
       parameters:
         - in: path
-          name: requestId
+          name: id
           required: true
           schema:
             type: string

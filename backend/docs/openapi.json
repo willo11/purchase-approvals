@@ -301,7 +301,7 @@
         }
       }
     },
-    "/api/purchase-requests/{requestId}/approvers/{email}/recover": {
+    "/api/purchase-requests/{id}/approvers/{email}/recover": {
       "post": {
         "tags": [
           "requests"
@@ -312,7 +312,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "requestId",
+            "name": "id",
             "required": true,
             "schema": {
               "type": "string"
