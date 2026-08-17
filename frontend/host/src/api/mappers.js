@@ -13,17 +13,6 @@ export const STATUS_LABELS = {
   COMPLETED: 'Completed',
 };
 
-/** Deterministic date label (UTC, e.g. "Aug 14, 2026"). */
-export function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', {
-    timeZone: 'UTC',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 /** "USD 1,234.56" */
 export function formatAmount(amount, currency = 'USD') {
   return `${currency} ${Number(amount).toLocaleString('en-US', {
