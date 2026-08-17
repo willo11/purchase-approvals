@@ -1,5 +1,9 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { S3EvidenceStore } from '../../../src/infrastructure/S3EvidenceStore';
+import {
+  InMemoryEvidenceStore,
+  S3EvidenceStore,
+  makeEvidenceStore,
+} from '../../../src/infrastructure/S3EvidenceStore';
 
 /** Observable stand-in for S3Client with a mocked send(). */
 function fakeClient(): { send: jest.Mock } {
@@ -60,5 +64,55 @@ describe('S3EvidenceStore (task 5.2, spec R2)', () => {
     const store = makeStore(client);
 
     await expect(store.get('reqs/req-1/evidence.pdf')).rejects.toThrow('S3 exploded');
+  });
+});
+
+describe('InMemoryEvidenceStore (EVIDENCE_STORE=memory, local demo)', () => {
+  it('put + get round-trips the same bytes and returns void on put', async () => {
+    const store = new InMemoryEvidenceStore();
+    const bytes = new Uint8Array([37, 80, 68, 70]);
+
+    const putResult = await store.put('reqs/req-1/evidence.pdf', bytes);
+
+    expect(putResult).toBeUndefined();
+    await expect(store.get('reqs/req-1/evidence.pdf')).resolves.toEqual(bytes);
+  });
+
+  it('get returns undefined for a key that was never stored (→ 404)', async () => {
+    const store = new InMemoryEvidenceStore();
+
+    await expect(store.get('reqs/missing/evidence.pdf')).resolves.toBeUndefined();
+  });
+
+  it('put overwrites the same key (deterministic evidence key semantics)', async () => {
+    const store = new InMemoryEvidenceStore();
+    await store.put('reqs/req-1/evidence.pdf', new Uint8Array([1]));
+    await store.put('reqs/req-1/evidence.pdf', new Uint8Array([2, 3]));
+
+    await expect(store.get('reqs/req-1/evidence.pdf')).resolves.toEqual(
+      new Uint8Array([2, 3])
+    );
+  });
+});
+
+describe('makeEvidenceStore (env-driven store selection)', () => {
+  const previous = process.env.EVIDENCE_STORE;
+  const previousBucket = process.env.EVIDENCE_BUCKET;
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env.EVIDENCE_STORE;
+    else process.env.EVIDENCE_STORE = previous;
+    if (previousBucket === undefined) delete process.env.EVIDENCE_BUCKET;
+    else process.env.EVIDENCE_BUCKET = previousBucket;
+  });
+
+  it('returns the in-memory store when EVIDENCE_STORE=memory (local demo)', () => {
+    process.env.EVIDENCE_STORE = 'memory';
+    expect(makeEvidenceStore()).toBeInstanceOf(InMemoryEvidenceStore);
+  });
+
+  it('returns the S3 store when EVIDENCE_STORE is unset (deploy default)', () => {
+    delete process.env.EVIDENCE_STORE;
+    expect(makeEvidenceStore()).toBeInstanceOf(S3EvidenceStore);
   });
 });

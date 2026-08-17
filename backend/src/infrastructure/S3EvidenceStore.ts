@@ -46,14 +46,42 @@ export class S3EvidenceStore implements EvidenceStorePort {
 }
 
 /**
- * Composition root for the production S3 adapter (same pattern as
- * `makeRequestRepository`). Reads the bucket from `EVIDENCE_BUCKET` (set by
- * serverless.yml from `custom.bucketName`).
+ * Composition root for the evidence store, driven by the environment.
+ *
+ * - `EVIDENCE_STORE=memory` (local demo) → {@link InMemoryEvidenceStore}; the
+ *   PDF flow works end-to-end without AWS credentials (S3 would 404/500
+ *   locally because the download handler cannot reach the bucket).
+ * - unset (deploy) → the real {@link S3EvidenceStore} (unchanged behavior);
+ *   keep the variable REMOVED in `backend/.env` before deploying.
  */
-export function makeEvidenceStore(): S3EvidenceStore {
+export function makeEvidenceStore(): EvidenceStorePort {
+  if (process.env.EVIDENCE_STORE === 'memory') {
+    return new InMemoryEvidenceStore();
+  }
   const bucket = process.env.EVIDENCE_BUCKET ?? 'purchase-approvals-evidence-dev';
   return new S3EvidenceStore({
     bucket,
     client: new S3Client({ region: process.env.AWS_REGION ?? 'us-east-1' }),
   });
+}
+
+/**
+ * Process-local evidence store for the LOCAL demo (`EVIDENCE_STORE=memory`).
+ *
+ * Same {@link EvidenceStorePort} semantics as the S3 adapter: `put` stores
+ * the bytes under the key (returns void), `get` returns the bytes or
+ * `undefined` (→ HTTP 404). Backed by a Map — the data only lives for the
+ * process lifetime, which is exactly what a local demo needs and why deploy
+ * must keep the S3 default.
+ */
+export class InMemoryEvidenceStore implements EvidenceStorePort {
+  private readonly objects = new Map<string, Uint8Array>();
+
+  async put(key: string, bytes: Uint8Array): Promise<void> {
+    this.objects.set(key, bytes);
+  }
+
+  async get(key: string): Promise<Uint8Array | undefined> {
+    return this.objects.get(key);
+  }
 }
