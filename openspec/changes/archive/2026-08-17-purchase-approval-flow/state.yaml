@@ -1,0 +1,55 @@
+change: purchase-approval-flow
+artifact_store: openspec
+status: archived
+current_phase: archived
+current_pr: 8
+
+dag:
+  proposal: done
+  specs: done
+  design: done
+  tasks: done
+  apply: done
+  verify: done
+  archive: done
+
+branch:
+  base: main
+  active: main
+  applied_prs: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  pending_prs: []
+
+notes: |
+  ARCHIVED 2026-08-17 — change CLOSED. All 8 PRs merged to main; 67/67 tasks
+  complete (verify tracked ~65); verify PASS-WITH-WARNINGS (obs #56: 29/29 spec scenarios with covering
+  tests incl. real concurrency races vs dynamodb-local; 348 unit tests, integration
+  221; design contract exact; OpenAPI parseable; English sweep clean; warning fixed
+  post-verify: design-api RequestDetail shape aligned).
+
+  ARCHIVE WORK DONE:
+  - Delta specs synced into main specs (openspec/specs/*/spec.md): 7 domains,
+    30 requirements, 51 scenarios — content verified byte-identical to the deltas
+    (flattened canonical form: Purpose + Requirements, no delta markers).
+    Reconciled drift: trailing newline normalized on all 7 main spec files
+    (cosmetic; requirement bodies were already fully merged by the English-contract
+    sweep). No REMOVED/RENAMED/MODIFIED blocks existed; no destructive merge.
+  - Final suite re-run post-sync: root `pnpm run test:ci` PASS (exit 0) + integration
+    (db:up -> DYNAMODB_LOCAL=... test:integration PASS -> db:down). See archive
+    report /sdd/purchase-approval-flow/archive-report (obs #57) for exact outputs.
+  - Change folder moved to openspec/changes/archive/2026-08-17-purchase-approval-flow/
+    (full audit trail: proposal, specs x7, design, design-api, design-concurrency,
+    tasks 65/65 [x], state). Verify report lives in Engram obs #56
+    (sdd/purchase-approval-flow/verify-report) as persisted by the verify phase.
+  - config.yaml: no rules.archive beyond "warn before destructive deltas" (not
+    applicable — no destructive merge); no closed-changes registry exists, the
+    archive move itself is the close.
+
+  ACCEPTED RESIDUALS (from verify, unchanged):
+  1. Deploy documented-pending (no AWS creds in sandbox; sls deploy + S3/CloudFront
+     commands + placeholders in README).
+  2. validatedAt marker does not expire (stale-marker window while ACTIVE+PENDING).
+  3. PDF permanent-404 recovery deferred (SQS/retry endpoint evolution documented).
+
+  NEXT: none — SDD cycle complete.
+
+updated_at: 2026-08-17T00:00:00
