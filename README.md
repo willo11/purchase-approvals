@@ -235,6 +235,16 @@ against the handlers. The interactive source of truth for routes/status codes is
 `openspec/changes/purchase-approval-flow/design-api.md`; the OpenAPI file mirrors it
 as the machine-readable artifact.
 
+**API testing instructions**: follow **`MANUAL-TESTING.md`** — a step-by-step
+`curl` guide per endpoint plus the full end-to-end UI walkthrough (register →
+create → inbox → OTP → approve/reject → PDF). A quick smoke via curl:
+
+```bash
+curl http://localhost:4000/dev/health                       # {"status":"ok"}
+curl http://localhost:4000/dev/api/users                    # list registered users
+curl http://localhost:4000/dev/mock-mail                    # demo inbox (links + OTPs)
+```
+
 ## Deployment
 
 > **Status: documented-pending (8.3 backend / 8.4 frontend).** This sandbox has
@@ -244,6 +254,22 @@ as the machine-readable artifact.
 > local credentials exist), but the actual deploy must run from an environment
 > with a real AWS profile. After deploying, fill the placeholders in this
 > section and run the post-deploy checks.
+
+### Deployed test URLs (fill after deploy)
+
+| Resource | URL |
+|----------|-----|
+| Backend API (API Gateway) | `https://<api-id>.execute-api.<region>.amazonaws.com/dev` |
+| Demo inbox (`/mock-mail`) | `https://<api-id>.execute-api.<region>.amazonaws.com/dev/mock-mail` |
+| Frontend host (CloudFront) | `https://<cloudfront-distribution>.cloudfront.net` |
+| Requester panel | `https://<cloudfront-distribution>.cloudfront.net/requester` |
+| Approver console | `https://<cloudfront-distribution>.cloudfront.net/demo` |
+| Evidence download | `https://<api-id>.execute-api.<region>.amazonaws.com/dev/api/purchase-requests/{id}/evidence.pdf` |
+
+> The approval links seeded into the inbox use `APPROVER_BASE_URL` — set it to
+> the CloudFront URL before `sls deploy` (see 8.3) so the links open the composed
+> approver UI. Before deploy, everything runs locally (see "Local run
+> instructions"): backend `http://localhost:4000/dev`, host `http://localhost:3000`.
 
 ### 8.3 — Backend (Lambda + API Gateway + DynamoDB + S3)
 
