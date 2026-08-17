@@ -1,14 +1,17 @@
 import { lazy, Suspense } from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
 import Landing from '../pages/LandingPage';
+import DemoPage from '../pages/DemoPage';
 
 const RequesterApp = lazy(() => import('requester/App'));
 const ApproverApp = lazy(() => import('approver/App'));
 
 /**
- * Shell routes. Each remote owns its routes: the requester remote owns
- * /requester* (PR #6), the approver remote owns /approve* (PR #7). The host
- * only composes them lazily — remotes never need to know about navigation.
+ * Shell routes. The host owns the demo hub (/), the approver console (/demo)
+ * and the app-shell routes; each remote owns its own: the requester remote
+ * owns /requester* (PR #6), the approver remote owns /approve* (PR #7). The
+ * host composes the remotes lazily — remotes never need to know about
+ * navigation.
  */
 export default function App() {
   return (
@@ -22,8 +25,8 @@ export default function App() {
             <Link to="/requester" className="hover:underline">
               Requester
             </Link>
-            <Link to="/approve" className="hover:underline">
-              Approver
+            <Link to="/demo" className="hover:underline">
+              Approver console
             </Link>
           </div>
         </nav>
@@ -31,6 +34,7 @@ export default function App() {
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/demo" element={<DemoPage />} />
           <Route
             path="/requester/*"
             element={

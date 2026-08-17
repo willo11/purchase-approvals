@@ -6,6 +6,7 @@
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack --mode production",
+    "postbuild": "node ../scripts/guard-no-process-env.mjs",
     "pretest": "node ../scripts/no-focused-tests.mjs",
     "test": "jest --coverage"
   },
@@ -22,6 +23,7 @@
     "@testing-library/dom": "^9.3.4",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^14.3.1",
+    "@testing-library/user-event": "^14.5.2",
     "autoprefixer": "^10.5.4",
     "babel-jest": "^29.7.0",
     "babel-loader": "^9.1.3",

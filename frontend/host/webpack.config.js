@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { ModuleFederationPlugin } = require('webpack').container;
 
@@ -36,6 +37,9 @@ module.exports = {
   },
   resolve: {
     extensions: ['.js', '.jsx'],
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
   },
   plugins: [
     new ModuleFederationPlugin({
@@ -62,6 +66,19 @@ module.exports = {
     }),
     new HtmlWebpackPlugin({
       template: './public/index.html',
+    }),
+    // CRITICAL (fresh-review FIX 1): replaces the `process.env.API_BASE_URL`
+    // expression in src/api/client.js with its literal value at build time.
+    // Without this the emitted bundle keeps a live `process.env` reference and
+    // webpack 5's web target throws `process is not defined` in the browser —
+    // the whole host (/, /demo, both remote compositions) is a blank page.
+    // Same pattern as the requester/approver webpacks. The postbuild guard
+    // (scripts/guard-no-process-env.mjs) asserts the bundle has NO leftover
+    // `process.env` literal.
+    new webpack.DefinePlugin({
+      'process.env.API_BASE_URL': JSON.stringify(
+        process.env.API_BASE_URL || 'http://localhost:4000/dev'
+      ),
     }),
   ],
   devServer: {

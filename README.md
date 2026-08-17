@@ -11,26 +11,35 @@ It is **not** a payment system and **not** PKI/cryptographic signing — the "si
 pnpm install && pnpm -C backend install && pnpm -C frontend/host install && \
   pnpm -C frontend/requester install && pnpm -C frontend/approver install
 
-# 2. Build the backend (dist/ is gitignored; serverless.yml loads handlers
+# 2. Local env — the template already sets the demo switches:
+#    EVIDENCE_STORE=memory (Download PDF works locally without AWS creds) and
+#    APPROVER_BASE_URL=http://localhost:3000 (mailed links open the host).
+#    Fresh clone: cp backend/.env.example backend/.env
+#    EXISTING backend/.env (e.g. created before this PR): do NOT overwrite it —
+#    copy (cp) clobbers any custom values. Add the two new keys manually:
+#      EVIDENCE_STORE=memory
+#      APPROVER_BASE_URL=http://localhost:3000
+cp backend/.env.example backend/.env   # or extend your existing backend/.env
+
+# 3. Build the backend (dist/ is gitignored; serverless.yml loads handlers
 #    from dist/, so a fresh clone has nothing to serve until this runs)
 pnpm -C backend run build
 
-# 3. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
+# 4. One-shot local setup: start dynamodb-local, create the table and seed the
+#    demo cast (db:up && db:create-table && db:seed in one command)
+pnpm run demo:setup
+
+# 5. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
 pnpm run dev
-
-# 4. Create the local DynamoDB table (the dynamodb-local container is
-#    in-memory — it resets on every db:up and the table is NOT auto-created
-#    locally; run this after every `pnpm run dev` that restarts the backend)
-pnpm -C backend run db:create-table
-
-# 5. Seed the demo cast (1 requester + 3 approvers) — idempotent, safe to re-run
-pnpm -C backend run db:seed
 ```
 
-Open **http://localhost:3000/requester** → create a request → open
-**http://localhost:4000/dev/mock-mail** (the demo inbox — backend JSON) → open
-an approval link → enter the OTP → approve → repeat for 3 approvers →
-**COMPLETED** + **Download PDF**.
+Open **http://localhost:3000** → the demo hub: **Requester panel** (`/requester`)
+to create a request, or **Approver console** (`/demo`) to see every request and
+jump straight into each approver's OTP flow. The demo inbox is
+**http://localhost:4000/dev/mock-mail** (backend JSON, filterable per recipient
+with `?to=<email>`). Complete all 3 approvals → **COMPLETED** + **Download PDF**
+(works locally thanks to the in-memory evidence store — see
+[Local run instructions](#local-run-instructions)).
 
 ## System description
 
@@ -81,6 +90,9 @@ an approval link → enter the OTP → approve → repeat for 3 approvers →
 ```
             ┌──────────────────────── HOST :3000 ───────────────────────┐
             │  Shell + routing chassis (React.lazy / Suspense)         │
+            │   /            demo hub (entry: two cards + tips)        │
+            │   /demo        approver console (request cards →         │
+            │                approver cards → real /approve link)      │
             │   /requester*  ──lazy loads──►  requester remote :3001   │
             │   /approve*    ──lazy loads──►  approver  remote :3002   │
             └───────────────────────────────────────────────────────────┘
@@ -101,8 +113,8 @@ an approval link → enter the OTP → approve → repeat for 3 approvers →
 |------|--------|-------|--------|
 | 1 | Register 4 employees (1 requester + 3 approvers) | **Seed or curl first** — the create form only LISTS registered users, it has no inline registration. Fastest: `pnpm -C backend run db:seed` (idempotent: Ruth requester + Ana/Sven/Luca approvers). Or use the PR #1 curls in `MANUAL-TESTING.md` (4× `POST /api/users`) | Users in registry |
 | 2 | Create a purchase request (title, amount, requester + 3 distinct approvers) | `http://localhost:3000/requester/new` | Request `PENDING`, 1 unique approval link per approver |
-| 3 | Open the demo inbox (backend JSON, not a frontend page) | `http://localhost:4000/dev/mock-mail` | Approval links + OTPs "sent" to each approver |
-| 4 | Open an approval link (copy `link` from mock-mail, replace host with `http://localhost:3000`) | Browser | OTP entry screen |
+| 3 | Open the demo inbox (backend JSON, not a frontend page) | `http://localhost:4000/dev/mock-mail` (per recipient: `.../mock-mail?to=ana@example.com`) | Approval links + OTPs "sent" to each approver |
+| 4 | Open an approval link (copy `link` from mock-mail — it already points at `http://localhost:3000` thanks to `APPROVER_BASE_URL`; no manual host replacement) | Browser (or `/demo` → approver card, which navigates to the same link) | OTP entry screen |
 | 5 | Enter the 6-digit code from mock-mail | Browser | Decision screen (request detail) |
 | 6 | **Approve** (records snapshot name + timestamp — no name input) | Browser | Approver shows SIGNED |
 | 7 | Repeat steps 4–6 for the other 2 approvers | Browser | 3rd approval → **COMPLETED** |
@@ -176,18 +188,16 @@ pnpm -C backend run db:create-table   # reads the schema from serverless.yml
 ```
 
 > **APPROVER_BASE_URL note**: the approval links in mock-mail are built by the
-> backend's `TokenIssuer` from `APPROVER_BASE_URL` (default
-> `http://localhost:4000` — the backend itself). For the demo, the link host must
-> point at the **frontend origin** (`http://localhost:3000`), which serves the
-> approver remote at `/approve`. Set it in `backend/.env`:
+> backend's `TokenIssuer` from `APPROVER_BASE_URL`. The template
+> (`backend/.env.example`) sets it to `http://localhost:3000` — the host origin,
+> which serves the approver remote at `/approve` — so local demo links open the
+> composed approver UI directly. Copy it into `backend/.env` (already done in
+> the quick path) and restart the backend after changing it.
 
-```bash
-# backend/.env
-APPROVER_BASE_URL=http://localhost:3000
-```
-
-then restart the backend before creating requests, so mailed links open the
-composed approver UI instead of hitting the API Gateway URL.
+> **Local evidence note**: `backend/.env.example` sets `EVIDENCE_STORE=memory`,
+> so the local backend serves Download PDF from a process-local in-memory
+> store — no AWS credentials needed for the demo. Deploy keeps the variable
+> **removed** so the S3 adapter is used (see [Deployment](#deployment)).
 
 ### Other commands
 
@@ -226,9 +236,14 @@ as the machine-readable artifact.
 1. **Empty `DYNAMODB_LOCAL`** in `backend/.env` (or remove the line) — otherwise
    every deployed Lambda points its DynamoDB client at `localhost:8000` and the
    API fails at runtime (the client is built from that env var).
-2. **Set `APPROVER_BASE_URL`** to the frontend origin (CloudFront URL, see 8.4)
+2. **Remove `EVIDENCE_STORE=memory`** — deployed Lambdas must use the S3
+   evidence store; a process-local in-memory store would lose every PDF on a
+   cold start (the template's local default is memory). The `predeploy` guard
+   (`scripts/guard-no-memory-store.mjs`, run by `pnpm -C backend run deploy`)
+   FAILS the deploy while it is set.
+3. **Set `APPROVER_BASE_URL`** to the frontend origin (CloudFront URL, see 8.4)
    so mock-mail approval links open the approver UI — not the API Gateway URL.
-3. Keep `AWS_REGION`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` pointing at
+4. Keep `AWS_REGION`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` pointing at
    your real profile (the dummy local values are for local dev only).
 
 **Deploy:**
@@ -237,8 +252,12 @@ as the machine-readable artifact.
 # 1. Build the TypeScript bundle (validated: PASS)
 pnpm -C backend run build
 
-# 2. Deploy — provisions the DynamoDB table, S3 bucket, IAM and all functions
-pnpm -C backend exec sls deploy --stage dev --region us-east-1
+# 2. Deploy — provisions the DynamoDB table, S3 bucket, IAM and all functions.
+#    Runs `predeploy` FIRST: the deploy guard (scripts/guard-no-memory-store.mjs)
+#    FAILS the deploy if EVIDENCE_STORE=memory is still set in backend/.env or
+#    the shell environment — the in-memory store must never reach deployed
+#    Lambdas (PDFs would be lost on cold start, download 404).
+pnpm -C backend run deploy -- --stage dev --region us-east-1
 ```
 
 **Record after deploy** (from `sls deploy` output → "Service Information"):

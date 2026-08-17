@@ -4,11 +4,13 @@ Guide to exercising the system by API with `curl`, without spinning up AWS. Ever
 runs locally (DynamoDB in Docker + `serverless offline` on `:4000`). It is updated as
 PRs land.
 
-> Current status: **PR #8 — release & docs (FINAL)**. All capabilities are in:
-> backend (PRs #1–#5), requester panel (PR #6), approver flow (PR #7). The
-> sections below cover the full API by curl and the composed-UI walks; the PR #7
-> section adds the approver composition smoke and the PR #8 section is the final
-> end-to-end checklist.
+> Current status: **PR #9 — demo fixes (POST-RELEASE)**. All capabilities are in:
+> backend (PRs #1–#5), requester panel (PR #6), approver flow (PR #7), release
+> & docs (PR #8). This PR adds demo polish: per-recipient inbox filtering
+> (`GET /mock-mail?to=`), the host demo hub (`/`) + approver console (`/demo`),
+> the local in-memory evidence store (`EVIDENCE_STORE=memory`, Download PDF
+> without AWS), `APPROVER_BASE_URL` pre-set for local approval links, the
+> requester empty-users seed hint, and the one-shot `pnpm run demo:setup`.
 
 ---
 
@@ -29,6 +31,8 @@ Variables that matter to you:
 |----------|-------------|------|
 | `DYNAMODB_LOCAL` | `http://localhost:8000` | Points to DynamoDB in Docker. Remove/empty it to target real AWS at deploy. |
 | `TABLE_NAME` | `purchase-approvals-dev` | Single-table name. It must exist locally. |
+| `EVIDENCE_STORE` | `memory` | Local only: the Download PDF flow uses an in-memory store, no AWS needed. Remove it before deploy → S3. |
+| `APPROVER_BASE_URL` | `http://localhost:3000` | Mailed approval links open the host at :3000, which composes the approver remote at `/approve`. |
 | `AWS_ACCESS_KEY_ID` / `SECRET` | `local-dummy` | Local only. Never put real credentials here. |
 
 ### 2. Start local DynamoDB + create the table
@@ -166,6 +170,14 @@ approver email (each approver lives in their own `OTP#<reqId>#<email>` item).
 # 0. Inbox — shows what was "sent", newest first. Copy one approval link + its OTP.
 curl -s -w "\nHTTP:%{http_code}\n" http://localhost:4000/dev/mock-mail
 
+# 0b. One user's inbox — the same log restricted to one recipient (newest-first
+#     preserved). The host approver console (/demo) uses this per-approver view
+#     to resolve each approver's real approval link.
+curl -s -w "\nHTTP:%{http_code}\n" "http://localhost:4000/dev/mock-mail?to=ana@example.com"
+
+# 0c. Malformed recipient -> 400
+curl -s -w "\nHTTP:%{http_code}\n" "http://localhost:4000/dev/mock-mail?to=not-an-email"
+
 # 1. Place a request so there is an OTP flow to drive (reuse PR #2 curl; local data resets on db:up)
 curl -s -o /dev/null -X POST http://localhost:4000/dev/api/purchase-requests \
   -H "Content-Type: application/json" \
@@ -192,7 +204,7 @@ curl -s -w "\nHTTP:%{http_code}\n" -X POST \
   -H "Content-Type: application/json" -d '{"email":"ana@example.com"}'
 ```
 
-**Expected result**: `200 inbox → 201 request → 201 issue → 201 validate → 401 (wrong) → 403 (after 3 fails) → 201/403 regenerate`. The OTP is single-use: validating the same code twice returns 410 on the second. A locked approver is rejected with 403 even with the correct code.
+**Expected result**: `200 inbox → 200 filtered (?to=) → 400 (bad ?to) → 201 request → 201 issue → 201 validate → 401 (wrong) → 403 (after 3 fails) → 201/403 regenerate`. The OTP is single-use: validating the same code twice returns 410 on the second. A locked approver is rejected with 403 even with the correct code.
 
 > **Routes/status codes** may vary by one letter if the handler differs from this guide's shape —
 > the authoritative table is `openspec/changes/purchase-approval-flow/design-api.md`. If a curl
@@ -288,6 +300,11 @@ title/description/amount/date, `Requester: <createdBy.name>`, and exactly 3 sign
 > keeps `COMPLETED` and download stays 404 forever — there is no automatic retry. The
 > documented evolution is an idempotent `POST .../evidence/retry` (re-generate when
 > `COMPLETED && !evidenceKey`) or the SQS consumer; NOT implemented in this PR.
+
+> **Local note (demo-fixes, PR #9)**: locally the evidence store is IN-MEMORY
+> (`EVIDENCE_STORE=memory` in `backend/.env.example`) — Download PDF works without
+> AWS credentials; the bytes live for the backend process lifetime. Deploy keeps the
+> variable REMOVED so the S3 adapter is used (see README 8.3 pre-deploy cleanup).
 
 ---
 

@@ -17,8 +17,11 @@
     "pretest": "node scripts/no-focused-tests.mjs",
     "pretest:unit": "node scripts/no-focused-tests.mjs",
     "pretest:integration": "node scripts/no-focused-tests.mjs",
+    "predeploy": "node scripts/guard-no-memory-store.mjs",
+    "deploy": "pnpm exec sls deploy",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "db:wait": "node --env-file=.env scripts/wait-for-dynamodb.mjs",
     "db:create-table": "node --env-file=.env scripts/create-local-table.mjs",
     "db:seed": "node --env-file=.env scripts/seed-demo.mjs"
   },

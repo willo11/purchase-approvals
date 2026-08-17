@@ -104,4 +104,34 @@ describe('MockMailRepo (spec R2)', () => {
 
     await expect(repo.list()).resolves.toEqual([]);
   });
+
+  it('list(to) filters to one recipient on the newest-first log, preserving order', async () => {
+    const client = fakeClient();
+    client.send.mockResolvedValue({
+      Items: [
+        {
+          id: 'mail-new', to: 'bob@example.com', type: 'OTP', subject: 'Your code',
+          body: 'Code: 111111', otpPlain: '111111', createdAt: '2026-08-14T00:02:00.000Z',
+        },
+        {
+          id: 'mail-other', to: 'carol@example.com', type: 'APPROVAL_LINK', subject: 'Link',
+          body: 'Please approve.', link: 'https://e/approve', createdAt: '2026-08-14T00:01:30.000Z',
+        },
+        {
+          id: 'mail-old', to: 'bob@example.com', type: 'APPROVAL_LINK', subject: 'Link',
+          body: 'Please approve.', link: 'https://e/approve', createdAt: '2026-08-14T00:01:00.000Z',
+        },
+      ],
+    });
+    const repo = makeRepo(client);
+
+    const events = await repo.list('bob@example.com');
+
+    // same GSI1 query; only the recipient's mails come back, order preserved
+    const [command] = client.send.mock.calls[0];
+    expect(command).toBeInstanceOf(QueryCommand);
+    expect(command.input.ScanIndexForward).toBe(false);
+    expect(events.map((e) => e.id)).toEqual(['mail-new', 'mail-old']);
+    expect(events.every((e) => e.to === 'bob@example.com')).toBe(true);
+  });
 });

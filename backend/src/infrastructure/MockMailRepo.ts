@@ -47,7 +47,7 @@ export class MockMailRepo implements MailLog {
     );
   }
 
-  async list(): Promise<MailEvent[]> {
+  async list(to?: string): Promise<MailEvent[]> {
     const result = await this.env.documentClient.send(
       new QueryCommand({
         TableName: this.env.tableName,
@@ -57,7 +57,11 @@ export class MockMailRepo implements MailLog {
         ScanIndexForward: false, // newest first
       })
     );
-    return (result.Items ?? []).map((item) => this.toEvent(item));
+    const events = (result.Items ?? []).map((item) => this.toEvent(item));
+    // Optional inbox filter: restrict to one recipient. Filtering in memory on
+    // the already-loaded newest-first log keeps the GSI1 query untouched and is
+    // plenty for the demo (the log is small); order is preserved.
+    return to ? events.filter((event) => event.to === to) : events;
   }
 
   private toEvent(item: Record<string, unknown>): MailEvent {

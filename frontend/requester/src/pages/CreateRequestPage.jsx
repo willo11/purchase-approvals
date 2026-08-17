@@ -83,7 +83,7 @@ const APPROVER_FIELDS = [
 export default function CreateRequestPage() {
   const navigate = useNavigate();
   const bumpListRefresh = useRequestStore((s) => s.bumpListRefresh);
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(null); // null = loading
   const [usersError, setUsersError] = useState(null);
   const [serverError, setServerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -131,7 +131,7 @@ export default function CreateRequestPage() {
 
   /** R2: requester selector MUST NOT allow the same email as any approver. */
   const requesterOptions = useMemo(
-    () => users.filter((u) => !selectedApprovers.includes(u.value)),
+    () => (users || []).filter((u) => !selectedApprovers.includes(u.value)),
     [users, JSON.stringify(selectedApprovers)]
   );
 
@@ -140,7 +140,7 @@ export default function CreateRequestPage() {
     const others = APPROVER_FIELDS.filter(({ name }) => name !== fieldName).map(
       ({ name }) => formValues[name]
     );
-    return users.filter(
+    return (users || []).filter(
       (u) =>
         u.value !== formValues.requesterEmail && !others.includes(u.value)
     );
@@ -191,6 +191,7 @@ export default function CreateRequestPage() {
           </div>
         )}
 
+        {usersError || users === null || users.length > 0 ? (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
@@ -322,6 +323,21 @@ export default function CreateRequestPage() {
             </Button>
           </div>
         </form>
+        ) : (
+          <div
+            role="status"
+            className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+          >
+            <p className="font-medium">No users registered</p>
+            <p className="mt-1">
+              Run{' '}
+              <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs">
+                pnpm -C backend run db:seed
+              </code>{' '}
+              to load the demo cast, then reload this page.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
