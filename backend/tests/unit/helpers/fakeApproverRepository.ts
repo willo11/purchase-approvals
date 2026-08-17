@@ -16,6 +16,7 @@ export class FakeApproverRepository implements ApproverRepository {
   findByTokenCalls = 0;
   incrementCalls = 0;
   resetCalls = 0;
+  recoverCalls = 0;
   markValidatedCalls = 0;
   markSignedCalls = 0;
   markRejectedCalls = 0;
@@ -56,6 +57,22 @@ export class FakeApproverRepository implements ApproverRepository {
     const state = this.approvers.get(`${requestId}#${email}`);
     if (!state || state.tokenStatus !== 'ACTIVE') return false;
     state.attempts = 0;
+    return true;
+  }
+
+  async recoverIfLocked(
+    requestId: string,
+    email: string,
+    opts: { resetAttemptsTo: number }
+  ): Promise<boolean> {
+    this.recoverCalls += 1;
+    const state = this.approvers.get(`${requestId}#${email}`);
+    // Only a LOCKED approver can be recovered (DECISIONS #25); a missing or
+    // non-locked (innocent pending) approver returns false → 409.
+    if (!state || state.tokenStatus !== 'INVALIDATED_LOCKOUT') return false;
+    state.tokenStatus = 'ACTIVE';
+    state.attempts = opts.resetAttemptsTo;
+    delete state.validatedAt;
     return true;
   }
 

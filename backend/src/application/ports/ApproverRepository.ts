@@ -54,6 +54,27 @@ export interface ApproverRepository {
   resetAttemptsIfActive(requestId: string, email: string): Promise<boolean>;
 
   /**
+   * REQUESTER-INITIATED recovery of a LOCKED approver's OTP (DECISIONS #25).
+   *
+   * Atomically resets an approver who is currently `INVALIDATED_LOCKOUT`:
+   * sets `attempts = resetAttemptsTo`, `tokenStatus = ACTIVE`, and clears any
+   * stale `validatedAt` — but ONLY while `tokenStatus = :locked`
+   * (compare-and-swap, the same atomic discipline as the lockout transition).
+   *
+   * This is the user's explicit product rule: recovery is scoped to a LOCKED
+   * approver and must NEVER silently re-issue the OTP of a non-locked
+   * (innocent pending) approver. Returns `false` when the approver is not
+   * currently locked (→ 409 `ApproverNotLockedError`), so a concurrent
+   * recovery or a regeneration can never double-run the transition and the
+   * callers of this port issue a FRESH OTP only for locked approvers.
+   */
+  recoverIfLocked(
+    requestId: string,
+    email: string,
+    opts: { resetAttemptsTo: number }
+  ): Promise<boolean>;
+
+  /**
    * Durable proof that this approver validated an OTP (spec R1/R2). Called by
    * {@link ValidateOtp} on SUCCESS (only the single OTP-consume winner reaches
    * it), writing a `validatedAt` timestamp on the durable APPR row. The

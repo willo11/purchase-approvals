@@ -196,6 +196,39 @@ export class DynamoDbApproverRepository implements ApproverRepository {
     }
   }
 
+  async recoverIfLocked(
+    requestId: string,
+    email: string,
+    opts: { resetAttemptsTo: number }
+  ): Promise<boolean> {
+    // Requester-initiated recovery of a LOCKED approver (DECISIONS #25). A
+    // SINGLE atomic conditional update flips the durable approver from
+    // `INVALIDATED_LOCKOUT` → `ACTIVE` (and clears a stale validatedAt)
+    // guarded by `tokenStatus = :locked` — compare-and-swap, mirroring the
+    // lockout transition. Only ONE concurrent recover can win; a non-locked
+    // (innocent pending) approver fails the condition and is never touched.
+    try {
+      await this.env.documentClient.send(
+        new UpdateCommand({
+          TableName: this.env.tableName,
+          Key: { PK: `REQ#${requestId}`, SK: `${APPR_PREFIX}${email}` },
+          UpdateExpression:
+            'SET attempts = :zero, tokenStatus = :active REMOVE validatedAt',
+          ConditionExpression: 'tokenStatus = :locked',
+          ExpressionAttributeValues: {
+            ':zero': opts.resetAttemptsTo,
+            ':active': 'ACTIVE',
+            ':locked': 'INVALIDATED_LOCKOUT',
+          },
+        })
+      );
+      return true;
+    } catch (err) {
+      if (isConditionalCheckFailed(err)) return false;
+      throw err;
+    }
+  }
+
   private toGateState(item: Record<string, unknown>): ApproverGateState {
     const state: ApproverGateState = {
       email: String(item.email),

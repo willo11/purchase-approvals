@@ -122,4 +122,37 @@ describe('DynamoDbApproverRepository', () => {
     const repoLocked = makeRepo(locked);
     await expect(repoLocked.resetAttemptsIfActive('req-1', 'bob@example.com')).resolves.toBe(false);
   });
+
+  it('recoverIfLocked resets a LOCKED approver to ACTIVE with a CAS on tokenStatus=locked', async () => {
+    const client = fakeClient();
+    client.send.mockResolvedValue({});
+    const repo = makeRepo(client);
+
+    const ok = await repo.recoverIfLocked('req-1', 'bob@example.com', { resetAttemptsTo: 0 });
+
+    expect(ok).toBe(true);
+    const [cmd] = client.send.mock.calls[0];
+    expect(cmd).toBeInstanceOf(UpdateCommand);
+    // one atomic conditional update: reset attempts, ACTIVE, clear validatedAt,
+    // guarded by `tokenStatus = :locked` (compare-and-swap, DECISIONS #25)
+    expect(cmd.input.UpdateExpression).toBe(
+      'SET attempts = :zero, tokenStatus = :active REMOVE validatedAt'
+    );
+    expect(cmd.input.ConditionExpression).toBe('tokenStatus = :locked');
+    expect(cmd.input.ExpressionAttributeValues).toMatchObject({
+      ':zero': 0,
+      ':active': 'ACTIVE',
+      ':locked': 'INVALIDATED_LOCKOUT',
+    });
+  });
+
+  it('recoverIfLocked returns false (not recovered) when the approver is NOT locked → 409 path', async () => {
+    const client = fakeClient();
+    client.send.mockRejectedValue({ name: 'ConditionalCheckFailedException' });
+    const repo = makeRepo(client);
+
+    await expect(
+      repo.recoverIfLocked('req-1', 'bob@example.com', { resetAttemptsTo: 0 })
+    ).resolves.toBe(false);
+  });
 });
