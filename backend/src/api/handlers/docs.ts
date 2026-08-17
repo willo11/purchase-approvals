@@ -1,9 +1,13 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type {
   APIGatewayProxyEvent,
   APIGatewayProxyResult,
 } from 'aws-lambda';
+// The OpenAPI spec is a committed, generated artifact (source of truth
+// `docs/openapi.yaml`). Importing the JSON lets serverless-esbuild BUNDLE it
+// into the docs handler — there is no `dist/docs` copy anymore (esbuild ships
+// only the bundle), so a static `import` keeps the spec available at runtime
+// without extra package config or a fs read.
+import openapiJson from '../../../docs/openapi.json';
 
 /**
  * Serves the interactive Swagger UI from the serverless API itself.
@@ -30,23 +34,11 @@ const SWAGGER_UI_STANDALONE_PRESET_JS =
   'https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js';
 
 function readSpec(): string {
-  // `dist/docs/openapi.json` is where the build copies the generated spec;
-  // fall back to `docs/openapi.json` so unit tests (cwd = backend/) can read
-  // it without a preceding build. NOTE: resolution is cwd-dependent — the
-  // Lambda runs with its package root as cwd (dist/ next to docs/), and the
-  // Jest tests pass from `backend/`. A stale `dist/docs/openapi.json` wins
-  // over the committed file, which is why the drift-guard unit test asserts
-  // they stay byte-identical.
-  const candidates = [
-    resolve(process.cwd(), 'dist', 'docs', 'openapi.json'),
-    resolve(process.cwd(), 'docs', 'openapi.json'),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return readFileSync(candidate, 'utf8');
-    }
-  }
-  return '{"openapi":"3.0.3","info":{"title":"Purchase Approval Flow API","version":"1.0.0"},"paths":{}}';
+  // esbuild bundles the imported JSON into this handler (see the import above),
+  // so there is no `dist/docs` copy at runtime — we always serve the committed,
+  // bundled spec verbatim. JSON.stringify of the freshly imported object
+  // reproduces the same spec data (paths, servers); indentation is compact.
+  return JSON.stringify(openapiJson);
 }
 
 /**

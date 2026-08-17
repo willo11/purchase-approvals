@@ -55,14 +55,30 @@ custom:
   # NOTE: S3 bucket names are globally unique. If `purchase-approvals-evidence-<stage>`
   # is taken, suffix the name at deploy time (PR #8) rather than changing the key schema.
   bucketName: purchase-approvals-evidence-${self:provider.stage}
+  esbuild:
+    bundle: true
+    minify: true
+    target: node20
+    sourcemap: false
+    packager: pnpm
+    external: []
+
+# We bundle each handler with serverless-esbuild. esbuild tree-shakes ONLY the
+# runtime deps each handler actually imports out of src/ (4 prod deps:
+# @aws-sdk/* , pdf-lib), so the shipped package is a handful of tiny JS bundles
+# with NO node_modules. This fixes the deploy blocker where pnpm + Serverless
+# packaged the ENTIRE `.pnpm` store (~840MB, 133k files → >250MB unzipped).
+package:
+  individually: false
 
 plugins:
   - serverless-dotenv-plugin
+  - serverless-esbuild
   - serverless-offline
 
 functions:
   health:
-    handler: dist/api/health.handler
+    handler: src/api/health.handler
     events:
       - http:
           path: health
@@ -70,7 +86,7 @@ functions:
           cors: true
 
   register-user:
-    handler: dist/api/handlers/userRegistry.createUser
+    handler: src/api/handlers/userRegistry.createUser
     events:
       - http:
           path: api/users
@@ -78,7 +94,7 @@ functions:
           cors: true
 
   list-users:
-    handler: dist/api/handlers/userRegistry.listUsers
+    handler: src/api/handlers/userRegistry.listUsers
     events:
       - http:
           path: api/users
@@ -86,7 +102,7 @@ functions:
           cors: true
 
   create-request:
-    handler: dist/api/handlers/purchaseRequest.create
+    handler: src/api/handlers/purchaseRequest.create
     events:
       - http:
           path: api/purchase-requests
@@ -94,7 +110,7 @@ functions:
           cors: true
 
   list-requests:
-    handler: dist/api/handlers/purchaseRequest.list
+    handler: src/api/handlers/purchaseRequest.list
     events:
       - http:
           path: api/purchase-requests
@@ -102,7 +118,7 @@ functions:
           cors: true
 
   request-detail:
-    handler: dist/api/handlers/purchaseRequest.detail
+    handler: src/api/handlers/purchaseRequest.detail
     events:
       - http:
           path: api/purchase-requests/{id}
@@ -110,7 +126,7 @@ functions:
           cors: true
 
   evidence-download:
-    handler: dist/api/handlers/evidence.download
+    handler: src/api/handlers/evidence.download
     events:
       - http:
           path: api/purchase-requests/{id}/evidence.pdf
@@ -118,7 +134,7 @@ functions:
           cors: true
 
   mock-mail:
-    handler: dist/api/handlers/mockMail.list
+    handler: src/api/handlers/mockMail.list
     events:
       - http:
           path: mock-mail
@@ -126,7 +142,7 @@ functions:
           cors: true
 
   docs:
-    handler: dist/api/handlers/docs.handlerDocs
+    handler: src/api/handlers/docs.handlerDocs
     events:
       - http:
           path: docs
@@ -134,7 +150,7 @@ functions:
           cors: true
 
   docs-spec:
-    handler: dist/api/handlers/docs.handlerSpec
+    handler: src/api/handlers/docs.handlerSpec
     events:
       - http:
           path: docs/openapi.json
@@ -142,7 +158,7 @@ functions:
           cors: true
 
   issue-otp:
-    handler: dist/api/handlers/otp.issue
+    handler: src/api/handlers/otp.issue
     events:
       - http:
           path: api/approvals/{requestId}/token/{token}/otp
@@ -150,7 +166,7 @@ functions:
           cors: true
 
   validate-otp:
-    handler: dist/api/handlers/otp.validate
+    handler: src/api/handlers/otp.validate
     events:
       - http:
           path: api/approvals/{requestId}/token/{token}/otp/validate
@@ -158,7 +174,7 @@ functions:
           cors: true
 
   regenerate-otp:
-    handler: dist/api/handlers/otp.regenerate
+    handler: src/api/handlers/otp.regenerate
     events:
       - http:
           path: api/approvals/{requestId}/token/{token}/otp/regenerate
@@ -166,7 +182,7 @@ functions:
           cors: true
 
   recover-approver-otp:
-    handler: dist/api/handlers/otp.recover
+    handler: src/api/handlers/otp.recover
     events:
       - http:
           path: api/purchase-requests/{id}/approvers/{email}/recover
@@ -174,7 +190,7 @@ functions:
           cors: true
 
   approve:
-    handler: dist/api/handlers/signature.approve
+    handler: src/api/handlers/signature.approve
     events:
       - http:
           path: api/approvals/{requestId}/token/{token}/approve
@@ -182,7 +198,7 @@ functions:
           cors: true
 
   reject:
-    handler: dist/api/handlers/signature.reject
+    handler: src/api/handlers/signature.reject
     events:
       - http:
           path: api/approvals/{requestId}/token/{token}/reject
