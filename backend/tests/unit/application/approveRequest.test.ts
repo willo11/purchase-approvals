@@ -20,6 +20,7 @@ function approvalDetail(signed: string[] = []): RequestDetail {
     email,
     name,
     status: (signed.includes(email) ? 'SIGNED' : 'PENDING') as RequestDetail['approvers'][number]['status'],
+    locked: false,
     signedAt: signed.includes(email) ? '2026-08-14T09:00:00.000Z' : undefined,
   });
   return {

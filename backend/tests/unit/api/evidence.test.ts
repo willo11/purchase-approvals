@@ -21,9 +21,9 @@ function completedDetail(overrides: Partial<RequestDetail> = {}): RequestDetail 
     status: 'COMPLETED',
     createdBy: { email: 'ana@example.com', name: 'Ana' },
     approvers: [
-      { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', signedAt: '2026-08-14T09:00:00.000Z' },
-      { email: 'carol@example.com', name: 'Carol', status: 'SIGNED', signedAt: '2026-08-14T09:00:00.000Z' },
-      { email: 'dave@example.com', name: 'Dave', status: 'SIGNED', signedAt: '2026-08-14T09:00:00.000Z' },
+      { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:00:00.000Z' },
+      { email: 'carol@example.com', name: 'Carol', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:00:00.000Z' },
+      { email: 'dave@example.com', name: 'Dave', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:00:00.000Z' },
     ],
     createdAt: '2026-08-14T00:00:00.000Z',
     evidenceKey: 'reqs/req-1/evidence.pdf',

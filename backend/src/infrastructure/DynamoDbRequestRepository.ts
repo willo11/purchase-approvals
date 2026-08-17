@@ -254,6 +254,7 @@ export class DynamoDbRequestRepository implements RequestRepository {
       Approver.fromSnapshot({
         email: String(row.email),
         name: String(row.name),
+        tokenStatus: row.tokenStatus as 'ACTIVE' | 'INVALIDATED_LOCKOUT' | undefined,
         status_signed: row.status_signed as string | undefined,
         status_rejected: row.status_rejected as string | undefined,
       }).toView()

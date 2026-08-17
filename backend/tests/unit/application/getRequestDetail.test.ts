@@ -12,9 +12,9 @@ const detail: RequestDetail = {
   status: 'PENDING',
   createdBy: { email: 'ana@example.com', name: 'Ana' },
   approvers: [
-    { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', signedAt: '2026-08-14T00:00:00.000Z' },
-    { email: 'carol@example.com', name: 'Carol', status: 'PENDING' },
-    { email: 'dave@example.com', name: 'Dave', status: 'PENDING' },
+    { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', locked: false, signedAt: '2026-08-14T00:00:00.000Z' },
+    { email: 'carol@example.com', name: 'Carol', status: 'PENDING', locked: false },
+    { email: 'dave@example.com', name: 'Dave', status: 'PENDING', locked: true },
   ],
   createdAt: '2026-08-14T00:00:00.000Z',
 };
@@ -31,9 +31,12 @@ describe('GetRequestDetail use case (R4)', () => {
       email: 'bob@example.com',
       name: 'Bob',
       status: 'SIGNED',
+      locked: false,
       signedAt: '2026-08-14T00:00:00.000Z',
     });
     expect(result.approvers.map((a) => a.status)).toEqual(['SIGNED', 'PENDING', 'PENDING']);
+    // the locked state is threaded through the detail (dave is locked)
+    expect(result.approvers.map((a) => a.locked)).toEqual([false, false, true]);
   });
 
   it('raises UnknownRequestError (→404) for an unknown id', async () => {
