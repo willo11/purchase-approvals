@@ -53,10 +53,20 @@ export class S3EvidenceStore implements EvidenceStorePort {
  *   locally because the download handler cannot reach the bucket).
  * - unset (deploy) → the real {@link S3EvidenceStore} (unchanged behavior);
  *   keep the variable REMOVED in `backend/.env` before deploying.
+ *
+ * The memory store is a PROCESS-WIDE singleton, and `pnpm run dev` starts
+ * `serverless offline --useInProcess` so all Lambda handlers run in that same
+ * process (serverless-offline's DEFAULT is one isolated worker thread per
+ * function — the approval handler would put the PDF into its isolate's map
+ * and the download handler would read an empty one, 404ing every download
+ * even though generation succeeded).
  */
+let sharedMemoryStore: InMemoryEvidenceStore | undefined;
+
 export function makeEvidenceStore(): EvidenceStorePort {
   if (process.env.EVIDENCE_STORE === 'memory') {
-    return new InMemoryEvidenceStore();
+    sharedMemoryStore ??= new InMemoryEvidenceStore();
+    return sharedMemoryStore;
   }
   const bucket = process.env.EVIDENCE_BUCKET ?? 'purchase-approvals-evidence-dev';
   return new S3EvidenceStore({

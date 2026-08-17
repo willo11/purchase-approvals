@@ -115,4 +115,12 @@ describe('makeEvidenceStore (env-driven store selection)', () => {
     delete process.env.EVIDENCE_STORE;
     expect(makeEvidenceStore()).toBeInstanceOf(S3EvidenceStore);
   });
+
+  it('shares ONE in-memory store across calls while EVIDENCE_STORE=memory (cross-handler PDF)', () => {
+    // serverless-offline loads each Lambda function as its own handler module;
+    // without a shared instance the approval handler puts the PDF into one map
+    // and the download handler reads an empty one (404 on a completed request).
+    process.env.EVIDENCE_STORE = 'memory';
+    expect(makeEvidenceStore()).toBe(makeEvidenceStore());
+  });
 });
