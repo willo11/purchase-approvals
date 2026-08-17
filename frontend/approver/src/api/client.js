@@ -8,7 +8,7 @@ import axios from 'axios';
  * The webpack DefinePlugin injects `process.env.API_BASE_URL` at build time;
  * in Jest the fallback applies because axios is mocked anyway.
  */
-export const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
+export const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/dev';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

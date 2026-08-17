@@ -54,7 +54,7 @@ module.exports = {
     }),
     new webpack.DefinePlugin({
       'process.env.API_BASE_URL': JSON.stringify(
-        process.env.API_BASE_URL || 'http://localhost:4000'
+        process.env.API_BASE_URL || 'http://localhost:4000/dev'
       ),
     }),
     new HtmlWebpackPlugin({
