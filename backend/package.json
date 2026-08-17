@@ -14,6 +14,7 @@
     "test": "jest --coverage",
     "test:unit": "jest --coverage",
     "test:integration": "DYNAMODB_LOCAL=http://localhost:8000 jest --runInBand --coverage=false",
+    "test:offline-pdf": "node scripts/verify-local-pdf.mjs",
     "pretest": "node scripts/no-focused-tests.mjs",
     "pretest:unit": "node scripts/no-focused-tests.mjs",
     "pretest:integration": "node scripts/no-focused-tests.mjs",
