@@ -19,7 +19,16 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].[contenthash:8].js',
-    publicPath: 'auto',
+    // CRITICAL (refresh-crash fix): must be absolute ('/'), NOT 'auto'. With
+    // 'auto', HtmlWebpackPlugin injects a RELATIVE <script src="main.[hash].js">
+    // which the browser resolves against the CURRENT URL — so on a deep route
+    // like /requester/<id> it becomes .../requester/main.[hash].js → the dev
+    // server returns index.html (MIME text/html) → strict MIME checking refuses
+    // to execute it → BLANK screen on refresh. The host always lives at the
+    // domain root, so '/' resolves to http://host/main.[hash].js on any route.
+    // (The remotes keep 'auto' — they must resolve chunks against their OWN
+    // origin when composed, which 'auto' does via the remoteEntry URL.)
+    publicPath: '/',
     clean: true,
   },
   module: {

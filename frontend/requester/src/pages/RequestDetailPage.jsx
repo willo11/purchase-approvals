@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { downloadEvidence, getRequest } from '@/api/requests';
+import { downloadEvidence, getRequest, recoverApproverOtp } from '@/api/requests';
 import { toDetailView } from '@/api/mappers';
 import { toErrorView } from '@/api/client';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -18,6 +19,14 @@ import StatusBadge from '@/components/StatusBadge';
 /**
  * R3 + R4: request metadata + per-approver status table; "Download PDF"
  * button ONLY when the global status is COMPLETED (blob GET #6).
+ *
+ * DECISIONS #25 (requester-initiated OTP recovery): a LOCKED approver (3
+ * failed OTP attempts) is shown with a distinct "Locked" indicator and a
+ * "Re-send OTP" button that calls POST .../approvers/{email}/recover. The
+ * recovery is scoped to LOCKED approvers ONLY — an innocent pending approver
+ * gets PENDING with NO resend button, so their OTP is never changed by an
+ * action they don't control. Terminal (COMPLETED/REJECTED) requests offer no
+ * recovery.
  */
 export default function RequestDetailPage() {
   const { id } = useParams();
@@ -26,6 +35,8 @@ export default function RequestDetailPage() {
   const [error, setError] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  // per-approver resend feedback: { [email]: { ok, message } }
+  const [resend, setResend] = useState({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -62,6 +73,21 @@ export default function RequestDetailPage() {
     }
   };
 
+  const handleResendOtp = async (email) => {
+    setResend((prev) => ({ ...prev, [email]: { pending: true } }));
+    try {
+      await recoverApproverOtp(id, email);
+      // refresh so the recovered approver shows ACTIVE (no longer locked)
+      await load();
+      setResend((prev) => ({ ...prev, [email]: { ok: true, message: 'OTP resent' } }));
+    } catch (err) {
+      setResend((prev) => ({
+        ...prev,
+        [email]: { ok: false, message: toErrorView(err).message },
+      }));
+    }
+  };
+
   if (error) {
     return (
       <Card>
@@ -85,6 +111,8 @@ export default function RequestDetailPage() {
   }
 
   const completed = detail.status === 'COMPLETED';
+  // Recovery is never offered on a terminal request (410 on the backend).
+  const terminal = detail.status === 'COMPLETED' || detail.status === 'REJECTED';
 
   return (
     <div className="space-y-6">
@@ -141,6 +169,7 @@ export default function RequestDetailPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Signed / Rejected</TableHead>
+                <TableHead>Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -149,9 +178,38 @@ export default function RequestDetailPage() {
                   <TableCell>{a.name}</TableCell>
                   <TableCell>{a.email}</TableCell>
                   <TableCell>
-                    <StatusBadge status={a.status}>{a.statusLabel}</StatusBadge>
+                    <span className="inline-flex items-center gap-2">
+                      <StatusBadge status={a.status}>{a.statusLabel}</StatusBadge>
+                      {a.locked && (
+                        <Badge variant="destructive" data-testid={`locked-${a.email}`}>
+                          Locked
+                        </Badge>
+                      )}
+                    </span>
                   </TableCell>
                   <TableCell>{a.actionLabel}</TableCell>
+                  <TableCell>
+                    {a.locked && !terminal && (
+                      <div className="space-y-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={resend[a.email]?.pending}
+                          onClick={() => handleResendOtp(a.email)}
+                        >
+                          {resend[a.email]?.pending ? 'Sending...' : 'Re-send OTP'}
+                        </Button>
+                        {resend[a.email]?.message && (
+                          <p
+                            role="alert"
+                            className={`text-xs ${resend[a.email]?.ok ? 'text-emerald-600' : 'text-destructive'}`}
+                          >
+                            {resend[a.email]?.message}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

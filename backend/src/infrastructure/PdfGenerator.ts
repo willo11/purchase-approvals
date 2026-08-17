@@ -10,9 +10,9 @@ import type { EvidenceGeneratorPort } from '../application/ports/EvidenceGenerat
  * Content per spec R1: request title/description/amount/date, "Requester"
  * resolved from the `createdBy.name` snapshot (never re-fetched from the
  * registry), and a signature section with EXACTLY 3 rows — one per approver —
- * each showing the approver's REGISTERED snapshot name and their signature
- * timestamp (status derived from whichever of signedAt/rejectedAt is present;
- * pending rows show a dash). No typed name ever reaches the PDF.
+     * each showing the approver's REGISTERED snapshot name + email and their
+     * signature timestamp (status derived from whichever of signedAt/rejectedAt
+     * is present; pending rows show a dash). No typed name ever reaches the PDF.
  */
 export class PdfGenerator implements EvidenceGeneratorPort {
   async generate(request: RequestDetail): Promise<Uint8Array> {
@@ -45,7 +45,7 @@ export class PdfGenerator implements EvidenceGeneratorPort {
     request.approvers.forEach((approver, index) => {
       const timestamp = approver.signedAt ?? approver.rejectedAt ?? '—';
       line(
-        `${index + 1}. ${approver.name} — ${approver.status} — ${timestamp}`,
+        `${index + 1}. ${approver.name} <${approver.email}> — ${approver.status} — ${timestamp}`,
         11,
         gray
       );

@@ -138,6 +138,13 @@ functions:
           path: api/approvals/{requestId}/token/{token}/otp/regenerate
           method: post
 
+  recover-approver-otp:
+    handler: dist/api/handlers/otp.recover
+    events:
+      - http:
+          path: api/purchase-requests/{requestId}/approvers/{email}/recover
+          method: post
+
   approve:
     handler: dist/api/handlers/signature.approve
     events:

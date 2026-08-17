@@ -35,6 +35,16 @@ const pendingDetail = {
   evidenceKey: undefined,
 };
 
+// A PENDING request with one LOCKED approver (Dana) — recovery target.
+const lockedDetail = {
+  ...pendingDetail,
+  approvers: [
+    { email: 'alice@x.com', name: 'Alice', status: 'SIGNED', signedAt: '2026-08-15T09:00:00.000Z' },
+    { email: 'bob@x.com', name: 'Bob', status: 'PENDING' },
+    { email: 'dana@x.com', name: 'Dana', status: 'PENDING', locked: true },
+  ],
+};
+
 const rejectedDetail = {
   ...completedDetail,
   status: 'REJECTED',
@@ -42,7 +52,7 @@ const rejectedDetail = {
   approvers: [
     { email: 'alice@x.com', name: 'Alice', status: 'SIGNED', signedAt: '2026-08-15T09:00:00.000Z' },
     { email: 'bob@x.com', name: 'Bob', status: 'REJECTED', rejectedAt: '2026-08-15T11:30:00.000Z' },
-    { email: 'dana@x.com', name: 'Dana', status: 'PENDING' },
+    { email: 'dana@x.com', name: 'Dana', status: 'PENDING', locked: true },
   ],
 };
 
@@ -171,5 +181,74 @@ describe('RequestDetailPage (R3 + R4)', () => {
     expect(
       screen.getByRole('button', { name: 'Try again' })
     ).toBeInTheDocument();
+  });
+
+  test('lockout recovery: a LOCKED approver shows the Locked indicator and a Re-send OTP button', async () => {
+    renderScreen(lockedDetail);
+
+    await screen.findByText('New laptops');
+
+    // Dana is locked → distinct Locked chip + Re-send OTP button
+    expect(screen.getByTestId('locked-dana@x.com')).toHaveTextContent('Locked');
+    expect(
+      screen.getByRole('button', { name: 'Re-send OTP' })
+    ).toBeInTheDocument();
+  });
+
+  test('lockout recovery: a non-locked PENDING approver shows PENDING with NO resend button', async () => {
+    renderScreen(pendingDetail);
+
+    await screen.findByText('New laptops');
+
+    // Dana (pending, not locked) has NO Locked chip and NO Re-send OTP button
+    expect(screen.queryByTestId('locked-dana@x.com')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Re-send OTP' })
+    ).not.toBeInTheDocument();
+    // pending approvers still show their PENDING status
+    expect(screen.getAllByText('Pending').length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('lockout recovery: clicking Re-send OTP calls the recover endpoint and reports success', async () => {
+    renderScreen(lockedDetail);
+    await screen.findByText('New laptops');
+
+    apiClient.post.mockResolvedValueOnce({ data: { expiresInSeconds: 180 } });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Re-send OTP' }));
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        '/api/purchase-requests/r1/approvers/dana%40x.com/recover'
+      );
+    });
+    expect(await screen.findByText('OTP resent')).toBeInTheDocument();
+  });
+
+  test('lockout recovery: a failed re-send surfaces the error, no crash', async () => {
+    renderScreen(lockedDetail);
+    await screen.findByText('New laptops');
+
+    apiClient.post.mockRejectedValueOnce({
+      response: { status: 409, data: { error: 'ApproverNotLockedError', message: 'Not locked' } },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Re-send OTP' }));
+
+    expect(await screen.findByText('Not locked')).toBeInTheDocument();
+    // screen stays usable
+    expect(screen.getByText('New laptops')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-send OTP' })).toBeEnabled();
+  });
+
+  test('lockout recovery: a terminal (REJECTED) request does not offer the Re-send button', async () => {
+    renderScreen(rejectedDetail);
+    await screen.findByText('New laptops');
+
+    // Dana is locked but the request is terminal → no Re-send OTP offered
+    expect(screen.getByTestId('locked-dana@x.com')).toHaveTextContent('Locked');
+    expect(
+      screen.queryByRole('button', { name: 'Re-send OTP' })
+    ).not.toBeInTheDocument();
   });
 });

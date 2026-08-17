@@ -5,16 +5,19 @@ import type {
 import { IssueOtp } from '../../application/IssueOtp';
 import { ValidateOtp } from '../../application/ValidateOtp';
 import { RegenerateOtp } from '../../application/RegenerateOtp';
+import { RecoverApproverOtp } from '../../application/RecoverApproverOtp';
 import { ApproverGate } from '../../application/ApproverGate';
 import { OtpService } from '../../domain/services/OtpService';
 import {
   UnknownRequestError,
   UnknownTokenError,
+  UnknownApproverError,
   TerminalRequestError,
   LockedOutError,
   ExpiredOtpError,
   WrongOtpError,
   AlreadyActedError,
+  ApproverNotLockedError,
   PurchaseRequestDomainError,
 } from '../../domain/errors';
 import { makeRequestRepository } from '../../infrastructure/DynamoDbRequestRepository';
@@ -25,19 +28,27 @@ import { makeMockMailRepo } from '../../infrastructure/MockMailRepo';
 /**
  * Error → HTTP mapper for the OTP endpoints (design-api policy):
  *
- *   Unknown request / unknown token                          → 404
- *   Lockout / not-ACTIVE regenerate                          → 403
- *   Terminal request / expired OTP                           → 410
+ *   Unknown request / unknown token / unknown approver          → 404
+ *   Lockout / not-ACTIVE regenerate                              → 403
+ *   Recover of a NON-locked (innocent pending) approver          → 409
+ *   Terminal request / expired OTP                               → 410
  *   Wrong OTP                                                → 401 { attemptsRemaining }
  *   Malformed code (and any other domain validation)         → 400
  *   Anything unexpected                                      → 500
  */
 function errorResponse(err: unknown): { status: number; body: Record<string, unknown> } {
-  if (err instanceof UnknownRequestError || err instanceof UnknownTokenError) {
+  if (
+    err instanceof UnknownRequestError ||
+    err instanceof UnknownTokenError ||
+    err instanceof UnknownApproverError
+  ) {
     return { status: 404, body: { error: (err as Error).name, message: (err as Error).message } };
   }
   if (err instanceof LockedOutError) {
     return { status: 403, body: { error: err.name, message: err.message } };
+  }
+  if (err instanceof ApproverNotLockedError) {
+    return { status: 409, body: { error: err.name, message: err.message } };
   }
   if (err instanceof AlreadyActedError) {
     // Shared gate: an approver who already signed/rejected re-entering the OTP
@@ -121,6 +132,21 @@ export function buildRegenerateOtp(useCase: RegenerateOtp) {
   };
 }
 
+/** Recovers a locked approver's OTP: `POST .../approvers/{email}/recover` → 201. */
+export function buildRecoverApproverOtp(useCase: RecoverApproverOtp) {
+  return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const requestId = event.pathParameters?.requestId ?? '';
+    const email = event.pathParameters?.email ?? '';
+    try {
+      const result = await useCase.execute({ requestId, email });
+      return json(201, result);
+    } catch (err) {
+      const { status, body } = errorResponse(err);
+      return json(status, body);
+    }
+  };
+}
+
 /**
  * Production Lambda handlers wired to the real ports.
  * serverless.yml maps:
@@ -139,4 +165,7 @@ export const issue = buildIssueOtp(new IssueOtp(gate, otps, otpService, mail));
 export const validate = buildValidateOtp(new ValidateOtp(gate, approvers, otps, otpService));
 export const regenerate = buildRegenerateOtp(
   new RegenerateOtp(gate, approvers, otps, otpService, mail)
+);
+export const recover = buildRecoverApproverOtp(
+  new RecoverApproverOtp(requests, approvers, otps, otpService, mail)
 );

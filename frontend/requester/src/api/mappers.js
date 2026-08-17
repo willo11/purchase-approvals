@@ -45,7 +45,7 @@ export function toSummaryView(summary) {
   };
 }
 
-/** ApproverView DTO → { email, name, statusLabel, actionLabel } */
+/** ApproverView DTO → { email, name, statusLabel, locked, actionLabel } */
 export function toApproverView(approver) {
   const actedAt = approver.signedAt || approver.rejectedAt;
   return {
@@ -53,6 +53,10 @@ export function toApproverView(approver) {
     name: approver.name,
     status: approver.status,
     statusLabel: STATUS_LABELS[approver.status] ?? approver.status,
+    // True only when this approver's token is INVALIDATED_LOCKOUT (locked-out
+    // OTP). The requester uses it to offer "Re-send OTP" recovery ONLY to
+    // locked approvers — never to innocent pending ones.
+    locked: Boolean(approver.locked),
     actionLabel: actedAt ? formatDate(actedAt) : '—',
   };
 }

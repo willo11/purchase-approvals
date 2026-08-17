@@ -157,6 +157,7 @@ describe('Approver rehydration (R4 per-approver status)', () => {
       email: 'bob@example.com',
       name: 'Bob',
       status: 'SIGNED',
+      locked: false,
       signedAt: '2026-08-14T00:00:01.000Z',
     });
 
@@ -172,5 +173,22 @@ describe('Approver rehydration (R4 per-approver status)', () => {
     expect(pending.getStatus()).toBe(ApproverStatus.PENDING);
     expect(pending.toView().signedAt).toBeUndefined();
     expect(pending.toView().rejectedAt).toBeUndefined();
+    expect(pending.toView().locked).toBe(false);
+  });
+
+  it('derives locked=true from an INVALIDATED_LOCKOUT tokenStatus and false otherwise', () => {
+    const locked = Approver.fromSnapshot({
+      email: 'bob@example.com',
+      name: 'Bob',
+      tokenStatus: 'INVALIDATED_LOCKOUT',
+    });
+    expect(locked.toView().locked).toBe(true);
+
+    const active = Approver.fromSnapshot({
+      email: 'carol@example.com',
+      name: 'Carol',
+      tokenStatus: 'ACTIVE',
+    });
+    expect(active.toView().locked).toBe(false);
   });
 });

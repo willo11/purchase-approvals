@@ -51,9 +51,9 @@ function completedDetail(): RequestDetail {
     status: 'COMPLETED',
     createdBy: { email: 'carol@example.com', name: 'Carol' },
     approvers: [
-      { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', signedAt: '2026-08-14T09:00:00.000Z' },
-      { email: 'dave@example.com', name: 'Dave', status: 'SIGNED', signedAt: '2026-08-14T09:05:00.000Z' },
-      { email: 'emma@example.com', name: 'Emma', status: 'SIGNED', signedAt: '2026-08-14T09:10:00.000Z' },
+      { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:00:00.000Z' },
+      { email: 'dave@example.com', name: 'Dave', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:05:00.000Z' },
+      { email: 'emma@example.com', name: 'Emma', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:10:00.000Z' },
     ],
     createdAt: '2026-08-14T00:00:00.000Z',
     evidenceKey: 'reqs/req-ev/evidence.pdf',
@@ -81,10 +81,14 @@ describe('PdfGenerator (task 5.1, spec R1)', () => {
     expect(text).toContain('Requester: Carol');
   });
 
-  it('renders exactly 3 signature rows with the registered names and their timestamps (R1)', async () => {
+  it('renders exactly 3 signature rows with the registered name + email and their timestamps (R1)', async () => {
     const text = await pageText(await generator.generate(completedDetail()));
 
     expect(text).toContain('Signatures:');
+    // Each row carries the registered name, its EMAIL, the status and timestamp.
+    expect(text).toContain('1. Bob <bob@example.com>');
+    expect(text).toContain('2. Dave <dave@example.com>');
+    expect(text).toContain('3. Emma <emma@example.com>');
     expect(text).toContain('Bob');
     expect(text).toContain('Dave');
     expect(text).toContain('Emma');
@@ -97,9 +101,9 @@ describe('PdfGenerator (task 5.1, spec R1)', () => {
     const detail: RequestDetail = {
       ...completedDetail(),
       approvers: [
-        { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', signedAt: '2026-08-14T09:00:00.000Z' },
-        { email: 'dave@example.com', name: 'Dave', status: 'REJECTED', rejectedAt: '2026-08-14T09:05:00.000Z' },
-        { email: 'emma@example.com', name: 'Emma', status: 'PENDING' },
+        { email: 'bob@example.com', name: 'Bob', status: 'SIGNED', locked: false, signedAt: '2026-08-14T09:00:00.000Z' },
+        { email: 'dave@example.com', name: 'Dave', status: 'REJECTED', locked: false, rejectedAt: '2026-08-14T09:05:00.000Z' },
+        { email: 'emma@example.com', name: 'Emma', status: 'PENDING', locked: false },
       ],
     };
 

@@ -211,6 +211,61 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/purchase-requests/{requestId}/approvers/{email}/recover:
+    post:
+      tags: [requests]
+      summary: 'Re-send OTP for a LOCKED approver (requester-initiated recovery)'
+      description: |
+        Requester-initiated recovery of a LOCKED approver's OTP (DECISIONS #25).
+        `locked` is TRUE only when the approver's token is `INVALIDATED_LOCKOUT`
+        (3 failed OTP attempts). This resets the locked approver to ACTIVE,
+        clears the failed-attempt count and issues them a fresh OTP (mailed).
+        It is SCOPED to a LOCKED approver ONLY — an innocent pending approver's
+        OTP is never re-issued by an action they don't control (their OTP only
+        changes via their OWN issue/regenerate flow).
+      operationId: recoverApproverOtp
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+          description: Purchase request id
+        - in: path
+          name: email
+          required: true
+          schema:
+            type: string
+            format: email
+          description: Approver email
+      responses:
+        '201':
+          description: Locked approver recovered with a fresh 3-minute OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpIssueResponse'
+        '404':
+          description: Unknown request or approver not part of the request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Approver is NOT locked (recovery is locked-only) — no OTP re-issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: Request is terminal (COMPLETED/REJECTED) — no recovery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/approvals/{requestId}/token/{token}/otp:
     post:
       tags: [approver-otp]
@@ -615,7 +670,7 @@ components:
 
     ApproverView:
       type: object
-      required: [email, name, status]
+      required: [email, name, status, locked]
       properties:
         email:
           type: string
@@ -624,6 +679,12 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/ApproverStatus'
+        locked:
+          type: boolean
+          description: >-
+            TRUE only when this approver's token is INVALIDATED_LOCKOUT (a
+            locked-out OTP after 3 failed attempts). The requester offers OTP
+            recovery ONLY to a locked approver (DECISIONS #25).
         signedAt:
           type: string
           format: date-time

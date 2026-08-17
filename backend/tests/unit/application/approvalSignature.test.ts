@@ -42,6 +42,7 @@ function detail(signed: string[] = []): RequestDetail {
       email: a.email,
       name: a.name,
       status: (signed.includes(a.email) ? 'SIGNED' : 'PENDING') as RequestDetail['approvers'][number]['status'],
+      locked: false,
       signedAt: signed.includes(a.email) ? '2026-08-14T10:00:00.000Z' : undefined,
     })),
     createdAt: '2026-08-14T00:00:00.000Z',

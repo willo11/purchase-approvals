@@ -74,6 +74,20 @@ export class UnknownUserError extends PurchaseRequestDomainError {}
 export class UnknownRequestError extends PurchaseRequestDomainError {}
 
 /**
+ * Raised when an approver email is not present among the approvers of a
+ * request (requester-initiated OTP recovery). Mapped to HTTP 404.
+ */
+export class UnknownApproverError extends PurchaseRequestDomainError {}
+
+/**
+ * Raised when a requester tries to recover the OTP of an approver whose token
+ * is NOT `INVALIDATED_LOCKOUT`. Mapped to HTTP 409 — recovery is ONLY for a
+ * locked approver, never for an innocent pending one (whose OTP must never be
+ * changed by an action they don't control).
+ */
+export class ApproverNotLockedError extends PurchaseRequestDomainError {}
+
+/**
  * Raised when an OTP submitted for validation is not a 6-digit numeric code.
  * Mapped to HTTP 400 at the API boundary (design-api policy).
  */

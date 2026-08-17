@@ -12,6 +12,7 @@ import { MockMailRepo } from '../../src/infrastructure/MockMailRepo';
 import { IssueOtp } from '../../src/application/IssueOtp';
 import { ValidateOtp } from '../../src/application/ValidateOtp';
 import { RegenerateOtp } from '../../src/application/RegenerateOtp';
+import { RecoverApproverOtp } from '../../src/application/RecoverApproverOtp';
 import { ApproverGate } from '../../src/application/ApproverGate';
 import { OtpService } from '../../src/domain/services/OtpService';
 import { PurchaseRequest } from '../../src/domain/PurchaseRequest';
@@ -19,6 +20,7 @@ import {
   ExpiredOtpError,
   WrongOtpError,
   LockedOutError,
+  ApproverNotLockedError,
 } from '../../src/domain/errors';
 
 /**
@@ -136,6 +138,7 @@ maybeDescribe('OTP flow (integration)', () => {
   const issue = new IssueOtp(gate, otps, otpService, mail);
   const validate = new ValidateOtp(gate, approvers, otps, otpService);
   const regenerate = new RegenerateOtp(gate, approvers, otps, otpService, mail);
+  const recover = new RecoverApproverOtp(requests, approvers, otps, otpService, mail);
 
   beforeAll(async () => {
     await createTable();
@@ -203,6 +206,58 @@ maybeDescribe('OTP flow (integration)', () => {
     await expect(
       validate.execute({ requestId: 'otp-2', token: 'token-bob', code })
     ).rejects.toBeInstanceOf(LockedOutError);
+  });
+
+  it('requester recovery: lock → recover → ACTIVE again → validates with the NEW mailed OTP', async () => {
+    await requests.create(makeRequest('otp-recover'), APPROVERS);
+    await issue.execute({ requestId: 'otp-recover', token: 'token-bob' });
+
+    // 3 wrong codes lock bob out (tokenStatus → INVALIDATED_LOCKOUT): failures
+    // 1 and 2 are WrongOtpError; the 3rd failure is the atomic lockout.
+    await expect(
+      validate.execute({ requestId: 'otp-recover', token: 'token-bob', code: '000000' })
+    ).rejects.toThrow(WrongOtpError);
+    await expect(
+      validate.execute({ requestId: 'otp-recover', token: 'token-bob', code: '000000' })
+    ).rejects.toThrow(WrongOtpError);
+    await expect(
+      validate.execute({ requestId: 'otp-recover', token: 'token-bob', code: '000000' })
+    ).rejects.toThrow(LockedOutError);
+    let gateState = await approvers.findByToken('otp-recover', 'token-bob');
+    expect(gateState!.tokenStatus).toBe('INVALIDATED_LOCKOUT');
+
+    // requester-initiated recovery resets the LOCKED approver → 201
+    const recovered = await recover.execute({
+      requestId: 'otp-recover',
+      email: 'bob@example.com',
+    });
+    expect(recovered).toEqual({ expiresInSeconds: 180 });
+
+    // the approver is ACTIVE again with attempts reset
+    gateState = await approvers.findByToken('otp-recover', 'token-bob');
+    expect(gateState!.tokenStatus).toBe('ACTIVE');
+    expect(gateState!.attempts).toBe(0);
+
+    // the FRESH (new) mailed code validates: issue+validate succeeds end-to-end
+    const newCode = await latestOtpCodeFor('bob@example.com');
+    await expect(
+      validate.execute({ requestId: 'otp-recover', token: 'token-bob', code: newCode })
+    ).resolves.toEqual({ valid: true });
+  });
+
+  it('requester recovery of a NON-locked approver is refused (409) and issues NO OTP / NO mail', async () => {
+    await requests.create(makeRequest('otp-recover-no'), APPROVERS);
+    await issue.execute({ requestId: 'otp-recover-no', token: 'token-carol' });
+
+    // carol is PENDING/ACTIVE (never locked) — an innocent approver
+    await expect(
+      recover.execute({ requestId: 'otp-recover-no', email: 'carol@example.com' })
+    ).rejects.toThrow(ApproverNotLockedError);
+
+    // her OTP was NOT re-issued: still ACTIVE, attempts still 0
+    const state = await approvers.findByToken('otp-recover-no', 'token-carol');
+    expect(state!.tokenStatus).toBe('ACTIVE');
+    expect(state!.attempts).toBe(0);
   });
 
   it('regenerate resets attempts and issues a fresh usable OTP', async () => {

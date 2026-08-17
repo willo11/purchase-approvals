@@ -241,3 +241,53 @@
 - **Tradeoff (c) — APPROVER_BASE_URL**: the approval link host in local dev.
   - **Decision**: `TokenIssuer` reads `APPROVER_BASE_URL` (default `http://localhost:4000`); the README instructs setting it to the **frontend origin** (`http://localhost:3000` locally, the CloudFront URL in production) so mailed links open the composed approver UI.
   - **Why**: the link host is the frontend's concern (the approver remote), not the backend's; the env var decouples them.
+
+---
+
+## 25. Lockout recovery: requester/owner-initiated, LOCKED-ONLY scoping (post-release)
+- **Problem**: a locked approver (3 failed OTP attempts → `tokenStatus=INVALIDATED_LOCKOUT`) has NO recovery path. The approver cannot unlock themselves — that would defeat the purpose of the lockout — so the recovery is an action by the request OWNER (the requester), not the locked approver.
+- **Auth posture (read with Decision 10)**: this app has NO authentication — identity is email-only, so the recover endpoint is gated only by `requestId + email`, like the rest of the API. "Owner/requester-initiated" is the PRODUCT logic (recovery is initiated through the requester UI and scoped to a locked approver), NOT a security boundary against an attacker who can already call any unauthenticated endpoint. In production these actions are gated by the requester's AUTHENTICATED identity (e.g. a JWT/Cognito session), per the auth disclaimer — the design assumes the caller reaching the recover endpoint is a legitimate owner, and layers the real identity check at the edge.
+- **Decision**:
+  1. **`ApproverView.locked` (boolean)** is exposed on the request-detail endpoint (derived from `tokenStatus === 'INVALIDATED_LOCKOUT'`), so the requester can SEE which approver is locked and is only ever offered recovery there.
+  2. **`POST /api/purchase-requests/{requestId}/approvers/{email}/recover`** → the requester-initiated recovery. **Gate chain**: request exists (404), global state not terminal (`COMPLETED`/`REJECTED` → 410), approver present in the request (404), approver IS locked (else 409).
+  3. **LOCKED-ONLY scoping (the user's explicit product rule — do NOT weaken)**: `ApproverRepository.recoverIfLocked` is a compare-and-swap `UpdateItem` `SET attempts = :zero, tokenStatus = ACTIVE REMOVE validatedAt` guarded by **`ConditionExpression: tokenStatus = :locked`**. It returns `false` when the approver is NOT locked → the use case throws `ApproverNotLockedError` (409) and issues NO OTP / NO mail. An innocent PENDING approver's OTP is NEVER re-issued by an action they don't control — the ONLY ways their OTP changes are their OWN `issue`/`regenerate` requests via the token.
+  4. **On a valid locked approver**, the CAS reset is followed by issuing a FRESH OTP (reusing `OtpService` — generate 6-digit + sha256 digest, `OTP#<reqId>#<email>` TTL item 180s) and mailing it through `MailPort`, so the recorder is NOTIFIED of their new code (consistent with "the approver is notified"). Returns `201 { expiresInSeconds: 180 }`.
+- **Security framing (the interview line)**: "The lockout prevents brute-force; recovery is requester/owner-initiated and LOCKED-ONLY, NOT self-service — a locked approver can't unlock themselves by retrying. It only touches the locked approver (a CAS on `tokenStatus=locked`), so no one's OTP changes without their own flow — an innocent pending approver keeps their code until they act. This app has email-only/no-auth identity (Decision 10), so the 'owner' is only as authenticated as the rest of the API — in production the caller's identity (requester JWT) is the real gate."
+- **Concurrency**: the CAS is the same atomic discipline as the lockout transition — under concurrent recoveries only ONE wins; a non-locked approver or an already-recovered one fails the condition → 409, so a fresh OTP is issued exactly once per lockout.
+- **Frontend**: the requester detail maps `ApproverView.locked` and shows a distinct "Locked" badge + a "Re-send OTP" button for LOCKED approvers only (pending non-locked approvers show PENDING with NO resend button; terminal requests offer no recovery).
+
+---
+
+## 26. Single-table key/prefix index — the whole data model at a glance
+
+> The single-table (Decision 2) uses **prefixed keys**: the PK prefix names the entity,
+> so one table holds every aggregate, and a single GSI orders "lists by type". Every
+> access pattern is one read. This is the map you want on the whiteboard.
+
+| Entity | PK | SK | GSI1 (gsi1pk, gsi1sk) | Notes |
+|--------|----|----|----------------------|-------|
+| **User** (employee) | `USER#<email>` | `USER#<email>` | `USER` / `createdAt` | email is the identity (Decision 9/16) |
+| **PurchaseRequest** | `REQ#<id>` | `REQ#<id>` | `REQ` / `createdAt` | the aggregate root + concurrency lock |
+| **Approver record** | `REQ#<id>` | `APPR#<email>` | none (read via parent PK + `begins_with`) | durable per-approver state (status, token, attempts, validatedAt) |
+| **OTP** | `OTP#<requestId>#<email>` | same | none | **TTL item** — `otpExpiresAt` (180s) sweep only; in-code expiry is the gate (Decision 4/19) |
+| **Mail** (demo inbox) | `MAIL#<uuid>` | `MAIL#<uuid>` | `MAIL` / `createdAt` | the outbox (Decision 21); newest-first via `ScanIndexForward:false` |
+
+**Core rules to defend:**
+- **One table, keys encode entity + relation.** A request and its approvers live together:
+  the REQ row `REQ#<id>` plus its `REQ#<id>/APPR#<email>` rows are fetched in a single
+  parent-keyed query (no join — the relation is in the key). Query-first, not SQL-first.
+- **Why the TTL lives ONLY on the OTP item** (not the approver row): the approver is
+  durable audit/state; the OTP is disposable. Mapping table TTL to the approver row would
+  DELETE approval evidence when the code expires (Decision 4/19 trap).
+- **Why approve-vs-reject is a single row**: the global transition lives on ONE item
+  (`REQ#<id>`), so DynamoDB serializes the conditional write (compare-and-swap) and
+  guarantees exactly one winner for `COMPLETED`/`REJECTED` (Decision 13/22).
+- **GSI1 is the "list by type" index**: `USER`,`REQ`,`MAIL` use `(gsi1pk, gsi1sk=createdAt)`
+  for ordered listing; approver/OTP rows are never listed globally, so they don't index.
+- **The prefix vocabulary is the schema** (schemaless): `USER#`/`REQ#`/`APPR#`/`OTP#`/`MAIL#`
+  are your de-facto entity types — a type-safety discipline since DynamoDB has no schema.
+
+**Interview line**: "DynamoDB has no joins and no schema, so I model the access patterns:
+the PK prefix IS the entity type, the relation (request → approver) lives in the composite
+key, and the concurrency lock is a single row whose conditional write DynamoDB serializes.
+One table, every query is one read — the prefix map is the whole data model."

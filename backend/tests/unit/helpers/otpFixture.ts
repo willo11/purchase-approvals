@@ -14,9 +14,9 @@ export function otpRequestDetail(overrides: Partial<RequestDetail> = {}): Reques
     status: 'PENDING',
     createdBy: { email: 'ana@example.com', name: 'Ana' },
     approvers: [
-      { email: 'bob@example.com', name: 'Bob', status: 'PENDING' },
-      { email: 'carol@example.com', name: 'Carol', status: 'PENDING' },
-      { email: 'dave@example.com', name: 'Dave', status: 'PENDING' },
+      { email: 'bob@example.com', name: 'Bob', status: 'PENDING', locked: false },
+      { email: 'carol@example.com', name: 'Carol', status: 'PENDING', locked: false },
+      { email: 'dave@example.com', name: 'Dave', status: 'PENDING', locked: false },
     ],
     createdAt: '2026-08-14T00:00:00.000Z',
     ...overrides,

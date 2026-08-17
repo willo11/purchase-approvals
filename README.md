@@ -31,36 +31,30 @@ pnpm run demo:setup
 
 # 5. Start everything (backend on :4000, frontends on :3000/:3001/:3002)
 pnpm run dev
-
-# 6. (Optional, separate terminal) Seed READY-MADE demo states. The backend
-#    must be running (step 5) — the script drives the real API to build 4 demo
-#    requests (rejected / completed / pending with regenerated OTP / fresh).
-pnpm -C backend run db:seed-scenarios
 ```
 
 Open **http://localhost:3000** → the demo hub: **Requester panel** (`/requester`)
 to create a request, or **Approver console** (`/demo`) to see every request and
 jump straight into each approver's OTP flow. The demo inbox is
 **http://localhost:4000/dev/mock-mail** (backend JSON, filterable per recipient
-with `?to=<email>`). Complete all 3 approvals → **COMPLETED** + **Download PDF**
+with `?to=<recipient>`). Complete all 3 approvals → **COMPLETED** + **Download PDF**
 (works locally thanks to the in-memory evidence store — see
 [Local run instructions](#local-run-instructions)).
 
-## Demo scenarios (one command)
+## How to run the demo
 
-After the stack is up, `pnpm -C backend run db:seed-scenarios` (run from a
-second terminal while `pnpm run dev` is running) drives the **real backend
-API** to build four ready-made states to explore:
+Demo data is **not pre-seeded beyond the user cast**. `pnpm run demo:setup`
+only seeds the 4 demo users (`db:seed`); the requests themselves are created
+through the running app. To explore the full flow:
 
-| Seeded request | State | How to explore |
-|----------------|-------|----------------|
-| **Rejected demo** | `REJECTED` | open any of its approval links → terminal screen (nothing to act on) |
-| **Completed demo** | `COMPLETED` | detail shows COMPLETED + **Download PDF** (real PDF with `EVIDENCE_STORE=memory`) |
-| **Pending demo (OTP regenerated)** | `PENDING` | Ana has 2 OTP mails — use the LATEST code (only the newest is stored; an older one returns 401). The OTP expires after 180s: once expired, open the link and choose "Generate new OTP" |
-| **Pending demo (fresh)** | `PENDING` | drive the full happy path yourself: OTP → approve ×3 → COMPLETED + PDF |
-
-Every run creates a **new** set of requests — there is no cleanup, the demo
-grows (existing data is untouched).
+1. **Seed the users** (done in quick path step 4): `pnpm run demo:setup` runs
+   `db:up && db:create-table && db:seed`.
+2. **Create a request** from the Requester panel (`/requester`) for 3 approvers.
+3. **Open its approval link** for each approver from the demo inbox
+   (`/mock-mail`).
+4. **Enter the OTP** mailed to that approver.
+5. **Approve ×3** (one per approver) → the request completes.
+6. **Download the PDF** evidence from the completed request's detail page.
 
 ## System description
 
@@ -142,6 +136,8 @@ grows (existing data is untouched).
 | 8 | Download evidence | `http://localhost:3000/requester/<id>` → **Download PDF** | Real `application/pdf` with title, amount, requester + 3 signature rows |
 
 **Reject path**: any approver can choose **Reject** (inline confirm) instead of Approve — the first reject wins, the request becomes `REJECTED`, all other links show the informational terminal screen.
+
+**Lockout recovery (known behavior)**: after 3 wrong OTP attempts an approver's token is `INVALIDATED_LOCKOUT` (even the correct code → 403). There is NO self-service unlock — the lockout is the brute-force protection. The **requester (owner)** can recover a LOCKED approver from the approval detail: a distinct **Locked** badge appears with a **Re-send OTP** button that calls `POST /api/purchase-requests/{id}/approvers/{email}/recover`. Recovery is scoped to a LOCKED approver ONLY — it resets that approver to ACTIVE and mails them a fresh OTP. An innocent `PENDING` (non-locked) approver shows PENDING with **no** resend button, so their OTP is never changed by an action they don't control (their code only changes via their own issue/regenerate flow). Note: "owner/requester" here reflects the app's product logic, not a security boundary — like the rest of the API, identity is email-only with NO auth (see the [auth disclaimer](#auth-disclaimer)), so the recover endpoint is gated only by `requestId + email`. In production this action would be gated by the requester's authenticated identity (e.g. JWT/Cognito).
 
 **Concurrency check (interview demo)**: open the same approval link in two tabs and approve almost simultaneously — exactly one `completedAt` is written and both tabs return the final state. Or have the 3rd approver approve while a reject races — `completed XOR rejected`, never both.
 
