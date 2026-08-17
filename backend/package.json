@@ -19,6 +19,7 @@
     "pretest:integration": "node scripts/no-focused-tests.mjs",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "db:wait": "node --env-file=.env scripts/wait-for-dynamodb.mjs",
     "db:create-table": "node --env-file=.env scripts/create-local-table.mjs",
     "db:seed": "node --env-file=.env scripts/seed-demo.mjs"
   },
