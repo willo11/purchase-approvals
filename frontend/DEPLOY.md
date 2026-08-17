@@ -79,11 +79,13 @@ aws s3api put-public-access-block --bucket purchase-approvals-requester-dev \
 ### 2b. Public-read bucket policy (so the browser can read the objects)
 
 ```bash
-# repeat for host, requester, and approver:
-aws s3api put-bucket-policy --bucket purchase-approvals-requester-dev --policy \
-  '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*",\
-    "Action":"s3:GetObject","Resource":"arn:aws:s3:::purchase-approvals-requester-dev/*"}]}'
+# repeat for host, requester, and approver (single line — do NOT break the JSON):
+aws s3api put-bucket-policy --bucket purchase-approvals-requester-dev --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::purchase-approvals-requester-dev/*"}]}'
 ```
+
+> The policy must be a single line inside the single quotes. Do not put a `\` line
+> continuation INSIDE the quoted JSON — it becomes a literal backslash and the
+> bucket rejects it with `MalformedPolicy: This policy contains invalid Json`.
 
 ### 2c. CORS policy — ON THE REMOTES (requester, approver) AND the host
 
