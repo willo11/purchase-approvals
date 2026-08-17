@@ -36,9 +36,15 @@ export async function createRequest(payload) {
  * Only meaningful when the request status is COMPLETED; otherwise 404.
  */
 export async function downloadEvidence(id) {
+  // DEPLOY FIX #9: the PDF endpoint returns the bytes base64 with
+  // isBase64Encoded=true, and API Gateway only base64-decodes it when the
+  // request's Accept matches `application/pdf` (binaryMediaTypes). axios's
+  // default Accept is `application/json, text/plain, */*`, which does NOT match —
+  // so the browser received the raw base64 TEXT and the PDF failed to open.
+  // Send `Accept: application/pdf` so API Gateway serves real binary bytes.
   const { data } = await apiClient.get(
     `/api/purchase-requests/${id}/evidence.pdf`,
-    { responseType: 'blob' }
+    { responseType: 'blob', headers: { Accept: 'application/pdf' } }
   );
   return data;
 }

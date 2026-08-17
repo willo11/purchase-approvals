@@ -26,3 +26,9 @@ backend deploy flow described in [`README.md`](./README.md#deployment).
 - **Root cause**: `serverless.yml` had `apiGateway.binaryMediaTypes: ['application/pdf', '*/*']`. The `*/*` wildcard makes API Gateway treat EVERY Content-Type as binary, so it **base64-encodes request bodies** (`isBase64Encoded: true`) — `JSON.parse(event.body)` in a handler then fails. (GETs have no body, so they still worked; only POSTs broke.)
 - **Fix**: keep only `application/pdf` in `binaryMediaTypes` (that's the one response that must be binary). Plain `application/json` passes through as text again.
 - **Why only deploy**: serverless-offline does not apply `binaryMediaTypes` the same way, so local never reproduced it.
+
+## 9 · Browser PDF download fails ("failed to load PDF document") — missing Accept header
+- **Symptom**: downloading evidence.pdf from the UI gives a corrupt file (won't open); `curl` with `Accept: application/pdf` gets a valid PDF.
+- **Root cause**: only `application/pdf` is a binary media type (we removed `*/*`, see #8). API Gateway base64-decodes the PDF response ONLY when the request's `Accept` matches `application/pdf`; the browser's axios sends `Accept: application/json, text/plain, */*`, so it received the base64 STRING as the blob → broken PDF.
+- **Fix**: the `downloadEvidence` axios call sends `headers: { Accept: 'application/pdf' }` so API Gateway serves real binary bytes.
+- **Why only deployed**: serverless-offline always decodes, so local never reproduced it.
