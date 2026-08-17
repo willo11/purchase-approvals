@@ -144,6 +144,69 @@ Reachable over HTTP at: `http://purchase-approvals-approver-dev.s3-website-us-ea
 
 ---
 
+## Phase 4.5 · CloudFront for each REMOTE (the https URLs you bake into the host)
+
+The S3 website endpoint is http-only; a browser on an https host page blocks http
+remote scripts (mixed content). So each remote must be served over **https** by a
+CloudFront distribution. Create one per remote (requester, approver) BEFORE the host
+build, and record the `https://<id>.cloudfront.net` domain.
+
+**Key settings per distribution:**
+
+| Setting | Value | Why |
+|---|---|---|
+| Origin domain | the bucket's **website endpoint** (`...s3-website-<region>.amazonaws.com`), NOT the REST endpoint | website endpoint serves `index.html` + SPA correctly |
+| Origin protocol | `http-only` | the website endpoint is http |
+| Viewer protocol | `redirect-to-https` | https for the browser |
+| Default root object | `index.html` | serve the app at the root |
+| Error response | 404 → `/index.html` with code 200 | SPA deep routes |
+
+**Create by CLI** (reproducible — a config file per remote). `requester-cf.json`:
+
+```json
+{
+  "CallerReference": "requester-remote-2026",
+  "Comment": "purchase-approvals requester remote",
+  "Enabled": true,
+  "Origins": { "Quantity": 1, "Items": [{
+    "Id": "requester-origin",
+    "DomainName": "purchase-approvals-requester-dev.s3-website-us-east-1.amazonaws.com",
+    "CustomOriginConfig": {
+      "HTTPPort": 80, "HTTPSPort": 443,
+      "OriginProtocolPolicy": "http-only",
+      "OriginSslProtocols": { "Quantity": 1, "Items": ["TLSv1.2"] }
+    }
+  }]},
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "requester-origin",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "AllowedMethods": { "Quantity": 2, "Items": ["GET","HEAD"] },
+    "CachedMethods": { "Quantity": 2, "Items": ["GET","HEAD"] },
+    "ForwardedValues": { "QueryString": false, "Cookies": { "Forward": "none" } },
+    "MinTTL": 0, "DefaultTTL": 86400, "MaxTTL": 31536000
+  },
+  "CustomErrorResponses": { "Quantity": 1, "Items": [
+    { "ErrorCode": 404, "ResponsePagePath": "/index.html", "ResponseCode": "200", "ErrorCachingMinTTL": 0 }
+  ]}
+}
+```
+
+```bash
+aws cloudfront create-distribution --distribution-config file://requester-cf.json
+# → output: Distribution.DomainName = https://<id>.cloudfront.net
+```
+Repeat with `approver-cf.json` (change `DomainName` + `CallerReference` to the approver bucket).
+
+> **Provisioning takes ~5–10 min** (`Status: Deployed`).
+> Verify each remote entry over https before building the host:
+> `curl -s -o /dev/null -w "%{http_code}\n" "https://<req-cloudfront>.cloudfront.net/remoteEntry.js"` → 200.
+
+> **Cache gotcha**: CloudFront caches aggressively. After a redeploy, `index.html` and the
+> newly-hashed chunks may be stale at the edge — invalidate the cache after each deploy:
+> `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`.
+
+---
+
 ## Phase 5 · Build + upload HOST (with the remote URLs)
 
 ```bash
@@ -167,13 +230,13 @@ aws s3 sync frontend/host/dist s3://purchase-approvals-host-dev --delete
 
 ---
 
-## Phase 6 · CloudFront (the HTTPS entry point for the HOST)
+## Phase 6 · CloudFront for the HOST (the https entry point)
 
-1. Create a distribution with origin = the **host** bucket's website endpoint (or use
-   an OAI with the bucket policy scoped accordingly).
-2. Set the **error response** → `index.html` with 404 (SPA deep links; same reason as
-   the `--error-document` above, at the CDN edge).
-3. Record the distribution domain: `https://<cloudfront-distribution>.cloudfront.net`
+Same approach as Phase 4.5 but for the **host** bucket (`purchase-approvals-host-dev`):
+create a CloudFront distribution pointing at the host bucket's website endpoint, with
+the same settings (redirect-to-https, default root `index.html`, 404 → `/index.html`).
+Record `https://<cloudfront-distribution>.cloudfront.net` — this is the URL users open,
+the one set in `APPROVER_BASE_URL`, and the URL to put in the README's test-URL table.
 
 Reachable at: `https://<cloudfront-distribution>.cloudfront.net`
 
