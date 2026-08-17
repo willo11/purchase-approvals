@@ -262,6 +262,11 @@ curl http://localhost:4000/dev/mock-mail                    # demo inbox (links 
 
 ## Deployment
 
+> **Deployment problems:** see [`DEPLOY-PROBLEMS.md`](./DEPLOY-PROBLEMS.md) for
+> every deploy blocker hit so far (the `--` leak, dummy creds, sibling path
+> params, reserved `AWS_REGION`, and the `>250MB` pnpm package — fixed by
+> bundling handlers with esbuild) and the exact fix for each.
+
 > **Status: documented-pending (8.3 backend / 8.4 frontend).** This sandbox has
 > no AWS credentials — the release commands below were authored and validated
 > (`pnpm -C backend run build` PASS; `sls deploy` attempted and failed with
