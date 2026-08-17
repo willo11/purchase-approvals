@@ -107,6 +107,7 @@ describe('RequestDetailPage (R3 + R4)', () => {
     await waitFor(() => {
       expect(apiClient.get).toHaveBeenCalledWith('/api/purchase-requests/r1/evidence.pdf', {
         responseType: 'blob',
+        headers: { Accept: 'application/pdf' },
       });
     });
     expect(global.URL.createObjectURL).toHaveBeenCalled();

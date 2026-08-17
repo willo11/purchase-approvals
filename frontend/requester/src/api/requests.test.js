@@ -47,6 +47,7 @@ describe('requests API (endpoints #3/#4/#5/#6)', () => {
     await downloadEvidence('r1');
     expect(apiClient.get).toHaveBeenCalledWith('/api/purchase-requests/r1/evidence.pdf', {
       responseType: 'blob',
+      headers: { Accept: 'application/pdf' },
     });
   });
 
