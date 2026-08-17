@@ -275,21 +275,31 @@ curl http://localhost:4000/dev/mock-mail                    # demo inbox (links 
 > with a real AWS profile. After deploying, fill the placeholders in this
 > section and run the post-deploy checks.
 
-### Deployed test URLs (fill after deploy)
+### Deployed test URLs
 
-| Resource | URL |
-|----------|-----|
-| Backend API (API Gateway) | `https://<api-id>.execute-api.<region>.amazonaws.com/dev` |
-| Demo inbox (`/mock-mail`) | `https://<api-id>.execute-api.<region>.amazonaws.com/dev/mock-mail` |
-| Frontend host (CloudFront) | `https://<cloudfront-distribution>.cloudfront.net` |
-| Requester panel | `https://<cloudfront-distribution>.cloudfront.net/requester` |
-| Approver console | `https://<cloudfront-distribution>.cloudfront.net/demo` |
-| Evidence download | `https://<api-id>.execute-api.<region>.amazonaws.com/dev/api/purchase-requests/{id}/evidence.pdf` |
+> Status: **backend deployed + requester/approver remotes deployed**. Host CloudFront
+> still pending (Phase 6 of `frontend/DEPLOY.md`). "https" URLs are the browser-correct
+> ones; the "http (S3 website)" ones are the raw bucket endpoints (http-only).
 
-> The approval links seeded into the inbox use `APPROVER_BASE_URL` — set it to
-> the CloudFront URL before `sls deploy` (see 8.3) so the links open the composed
-> approver UI. Before deploy, everything runs locally (see "Local run
-> instructions"): backend `http://localhost:4000/dev`, host `http://localhost:3000`.
+| Resource | URL | Status |
+|----------|-----|--------|
+| Backend API (API Gateway) | `https://whlw0bdtn6.execute-api.us-east-1.amazonaws.com/dev` | ✅ deployed |
+| Demo inbox (`/mock-mail`) | `https://whlw0bdtn6.execute-api.us-east-1.amazonaws.com/dev/mock-mail` | ✅ |
+| Swagger UI (`/docs`) | `https://whlw0bdtn6.execute-api.us-east-1.amazonaws.com/dev/docs` | ✅ |
+| Evidence download | `https://whlw0bdtn6.execute-api.us-east-1.amazonaws.com/dev/api/purchase-requests/{id}/evidence.pdf` | ✅ |
+| **Requester remote** (https, CloudFront) | `https://dvh7hrbuiupoy.cloudfront.net` | ✅ deployed |
+| **Approver remote** (https, CloudFront) | `https://dc9klktisn7nb.cloudfront.net` | ✅ deployed |
+| Requester (http, S3 website) | `http://purchase-approvals-requester-dev.s3-website-us-east-1.amazonaws.com` | ✅ |
+| Approver (http, S3 website) | `http://purchase-approvals-approver-dev.s3-website-us-east-1.amazonaws.com` | ✅ |
+| Host (http, S3 website) | `http://purchase-approvals-host-dev.s3-website-us-east-1.amazonaws.com` | ✅ uploaded |
+| **Frontend host** (https, CloudFront) | `https://<cloudfront-distribution>.cloudfront.net` | ⏳ pending (Phase 6) |
+| Requester panel | `https://<cloudfront-distribution>.cloudfront.net/requester` | ⏳ pending host |
+| Approver console | `https://<cloudfront-distribution>.cloudfront.net/demo` | ⏳ pending host |
+
+> The approval links seeded into the inbox use `APPROVER_BASE_URL` — set it to the
+> **host CloudFront URL** before the final `sls deploy` (see Phase 7 of
+> `frontend/DEPLOY.md`) so the links open the composed approver UI. Step-by-step
+> frontend deploy: `frontend/DEPLOY.md`.
 
 ### 8.3 — Backend (Lambda + API Gateway + DynamoDB + S3)
 
