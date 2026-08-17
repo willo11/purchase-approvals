@@ -71,6 +71,10 @@ Done: the API is at `http://localhost:4000/dev`.
 
 ### PR #1 — user-registry (`/api/users`)
 
+> **Quick start**: `pnpm -C backend run db:seed` registers the 4 demo users
+> (Ruth requester + Ana/Sven/Luca approvers) directly in DynamoDB — idempotent,
+> no curl needed. The curls below remain the manual alternative.
+
 ```bash
 # Smoke — is it alive? → {"status":"ok"}
 curl http://localhost:4000/dev/health
