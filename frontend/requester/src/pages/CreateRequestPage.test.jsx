@@ -235,4 +235,17 @@ describe('CreateRequestPage (R2)', () => {
       await screen.findByText(/Could not load users: Users boom/)
     ).toBeInTheDocument();
   });
+
+  test('R4: empty user registry shows the db:seed hint instead of empty selectors', async () => {
+    apiClient.get.mockResolvedValue({ data: [] });
+
+    renderScreen();
+
+    const hint = await screen.findByRole('status');
+    expect(hint).toHaveTextContent('No users registered');
+    expect(hint).toHaveTextContent('pnpm -C backend run db:seed');
+    // No empty selector form — the hint replaces it.
+    expect(screen.queryByRole('button', { name: 'Create request' })).not.toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
 });
