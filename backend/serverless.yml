@@ -13,16 +13,18 @@ provider:
   environment:
     TABLE_NAME: ${self:custom.tableName}
     EVIDENCE_BUCKET: ${self:custom.bucketName}
-  # CRITICAL for the evidence download (fresh-review FIX 1): without binary
-  # media types, a real REST API v1 deployment does NOT base64-decode the proxy
-  # response — the client would receive the base64 STRING as text with a lying
-  # Content-Type: application/pdf. serverless-offline bypasses this API
-  # boundary, so unit/integration tests cannot catch it; it must be validated
-  # against a DEPLOYED API (see MANUAL-TESTING PR #5).
+  # CRITICAL (fresh-review FIX 1 + deploy FIX 8): the evidence PDF response is
+  # returned base64 with `isBase64Encoded: true`, so `application/pdf` MUST be a
+  # binary media type for API Gateway to base64-DECODE it and transit real bytes.
+  # DO NOT add wildcard `*/*`: that makes API Gateway treat EVERY Content-Type as
+  # binary and base64-ENCODE request bodies too (isBase64Encoded=true) — so
+  # JSON.parse(event.body) in a handler fails with "Invalid JSON body" and every
+  # POST breaks (create users, OTP validate, approve, ...). Plain JSON must be
+  # passed through as text; only application/pdf is binary. serverless-offline
+  # masks this in local dev; only a real deployment reproduces it.
   apiGateway:
     binaryMediaTypes:
       - 'application/pdf'
-      - '*/*'
   iamRoleStatements:
     - Effect: Allow
       Action:

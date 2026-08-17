@@ -20,3 +20,9 @@ backend deploy flow described in [`README.md`](./README.md#deployment).
 > handful of tiny JS bundles with no `node_modules`. See
 > `backend/serverless.yml` (`custom.esbuild`, `package.individually: false`) and
 > the docs handler's JSON `import`.
+
+## 8 · POSTs fail with "Invalid JSON body" (deployed) — the `*/*` binary media type
+- **Symptom**: POST/PUT to any endpoint returns `400 {error:"Invalid JSON body"}` in the deployment, but works locally.
+- **Root cause**: `serverless.yml` had `apiGateway.binaryMediaTypes: ['application/pdf', '*/*']`. The `*/*` wildcard makes API Gateway treat EVERY Content-Type as binary, so it **base64-encodes request bodies** (`isBase64Encoded: true`) — `JSON.parse(event.body)` in a handler then fails. (GETs have no body, so they still worked; only POSTs broke.)
+- **Fix**: keep only `application/pdf` in `binaryMediaTypes` (that's the one response that must be binary). Plain `application/json` passes through as text again.
+- **Why only deploy**: serverless-offline does not apply `binaryMediaTypes` the same way, so local never reproduced it.
