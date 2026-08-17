@@ -277,9 +277,8 @@ curl http://localhost:4000/dev/mock-mail                    # demo inbox (links 
 
 ### Deployed test URLs
 
-> Status: **backend deployed + requester/approver remotes deployed**. Host CloudFront
-> still pending (Phase 6 of `frontend/DEPLOY.md`). "https" URLs are the browser-correct
-> ones; the "http (S3 website)" ones are the raw bucket endpoints (http-only).
+> **Status: all three (backend, requester, approver, host) deployed.** "https" URLs are the
+> browser-correct ones; the "http (S3 website)" ones are the raw bucket endpoints (http-only).
 
 | Resource | URL | Status |
 |----------|-----|--------|
@@ -292,9 +291,9 @@ curl http://localhost:4000/dev/mock-mail                    # demo inbox (links 
 | Requester (http, S3 website) | `http://purchase-approvals-requester-dev.s3-website-us-east-1.amazonaws.com` | ✅ |
 | Approver (http, S3 website) | `http://purchase-approvals-approver-dev.s3-website-us-east-1.amazonaws.com` | ✅ |
 | Host (http, S3 website) | `http://purchase-approvals-host-dev.s3-website-us-east-1.amazonaws.com` | ✅ uploaded |
-| **Frontend host** (https, CloudFront) | `https://<cloudfront-distribution>.cloudfront.net` | ⏳ pending (Phase 6) |
-| Requester panel | `https://<cloudfront-distribution>.cloudfront.net/requester` | ⏳ pending host |
-| Approver console | `https://<cloudfront-distribution>.cloudfront.net/demo` | ⏳ pending host |
+| **Frontend host** (https, CloudFront) | `https://d2w6pt5r1wzlum.cloudfront.net` | ✅ deployed |
+| Requester panel | `https://d2w6pt5r1wzlum.cloudfront.net/requester` | ✅ |
+| Approver console | `https://d2w6pt5r1wzlum.cloudfront.net/demo` | ✅ |
 
 > The approval links seeded into the inbox use `APPROVER_BASE_URL` — set it to the
 > **host CloudFront URL** before the final `sls deploy` (see Phase 7 of
