@@ -28,7 +28,11 @@ export interface MailPort {
  * A {@link MailPort} that also records history for `GET /mock-mail`, newest
  * first (spec R2). `MockMailRepo` implements it; the mock-mail handler depends
  * only on this view.
+ *
+ * `list(to?)` optionally restricts the log to one recipient ("one user's
+ * inbox" for the demo hub). When omitted the FULL log is returned; callers
+ * with no filter argument are unaffected.
  */
 export interface MailLog extends MailPort {
-  list(): Promise<MailEvent[]>;
+  list(to?: string): Promise<MailEvent[]>;
 }

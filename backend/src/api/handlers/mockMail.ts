@@ -1,5 +1,9 @@
-import type { APIGatewayProxyResult } from 'aws-lambda';
+import type {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+} from 'aws-lambda';
 import { MailLog } from '../../application/ports/MailPort';
+import { Email } from '../../domain/values/Email';
 import { makeMockMailRepo } from '../../infrastructure/MockMailRepo';
 
 function json(statusCode: number, payload: unknown): APIGatewayProxyResult {
@@ -13,13 +17,25 @@ function json(statusCode: number, payload: unknown): APIGatewayProxyResult {
 /**
  * Builds the `GET /mock-mail` handler (spec R2).
  *
- * Returns the simulated inbox newest first. Only the {@link MailLog} view is
- * needed, so unit tests inject any in-memory log.
+ * Returns the simulated inbox newest first. The optional `?to=<email>` query
+ * parameter simulates "one user's inbox" by restricting the log to that
+ * recipient (demo hub). Only the {@link MailLog} view is needed, so unit
+ * tests inject any in-memory log.
  */
 export function buildListMail(log: MailLog) {
-  return async (): Promise<APIGatewayProxyResult> => {
+  return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const rawTo = event.queryStringParameters?.to;
+    if (rawTo !== undefined && !Email.isValid(rawTo)) {
+      return json(400, {
+        error: 'InvalidQueryParameter',
+        message: 'Query parameter "to" must be a valid email address',
+      });
+    }
     try {
-      const events = await log.list();
+      // Normalized (trimmed, lower-cased) recipient — matches how the registry
+      // stores addresses, so the filter hits regardless of case.
+      const to = rawTo === undefined ? undefined : Email.create(rawTo).toString();
+      const events = await log.list(to);
       return json(200, events);
     } catch (err) {
       return json(500, {
