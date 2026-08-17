@@ -6,7 +6,7 @@
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack --mode production",
-    "postbuild": "node ../scripts/guard-no-process-env.mjs",
+    "postbuild": "node ../scripts/guard-no-process-env.mjs && node ../scripts/check-absolute-src.mjs",
     "pretest": "node ../scripts/no-focused-tests.mjs",
     "test": "jest --coverage"
   },
