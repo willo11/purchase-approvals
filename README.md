@@ -353,6 +353,10 @@ file evidence.pdf    # must say "PDF document", not ASCII text
 
 ### 8.4 — Frontend (3 bundles → S3 → CloudFront)
 
+> Full, ordered, step-by-step guide with WHEN to set the CORS policy and public
+> read, and the build order: **`frontend/DEPLOY.md`**. The backend deploy problems
+> are in **`DEPLOY-PROBLEMS.md`**.
+
 The three Module Federation apps are independent static bundles — each goes to
 its own S3 bucket, and one CloudFront distribution fronts the **host** bucket
 (the host's `remoteEntry.js` tells the browser where the requester and approver
