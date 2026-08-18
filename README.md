@@ -43,6 +43,11 @@ with `?to=<recipient>`). Complete all 3 approvals → **COMPLETED** + **Download
 
 ## How to run the demo
 
+> **Live deployed demo**: the production instance is already running — see
+> **`DEMO-LIVE.md`** for the current deployed URLs (host, requester, approver,
+> demo inbox, Swagger) and the deployed end-to-end walkthrough. The steps below
+> are for the **local** run.
+
 Demo data is **not pre-seeded beyond the user cast**. `pnpm run demo:setup`
 only seeds the 4 demo users (`db:seed`); the requests themselves are created
 through the running app. To explore the full flow:
